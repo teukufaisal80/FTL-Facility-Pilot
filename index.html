@@ -518,17 +518,17 @@
         });
     }
 
-    // Filter by division — use sheetsRef for latest value without waiting for state update
+    // Filter by division
     const divData = useMemo(()=>{
       if(division.key==="ALL") return dataWithStatus;
       const div = DIVISIONS.find(d=>d.key===division.key);
       if(!div||!div.match) return dataWithStatus;
-      // Use sheetsRef for immediate value, fall back to sheets state
       const sheetList = sheetsRef.current.length ? sheetsRef.current : sheets;
+      if(!sheetList.length) return dataWithStatus;
       const matchingGids = sheetList.filter(s=>div.match.test(s.name)).map(s=>s.id);
-      if(!matchingGids.length) return dataWithStatus; // no sheets loaded yet, show all
+      if(!matchingGids.length) return dataWithStatus;
       return dataWithStatus.filter(d=>matchingGids.includes(d.gid));
-    },[dataWithStatus,division,sheets]);
+    },[dataWithStatus,division,sheets,allData]);
 
     // Date filter
     function localDateF(iso){if(!iso) return null;const[y,m,d]=iso.split("-").map(Number);return new Date(y,m-1,d);}
@@ -661,6 +661,8 @@
           setTo(toISO(new Date(latest.getFullYear(),latest.getMonth()+1,0)));
         }
         setAllData(merged); setLF(new Date()); setLoading(false);
+        // Force sheets state sync after data loads
+        setSheets(s=>s.length?[...s]:s);
       }catch(e){setErr(e.message);setLoading(false);}
     },[]);
 
