@@ -339,10 +339,11 @@
   function parseSheetResp(resp,gidStr){
     if(!resp?.table) return [];
     let headers=resp.table.cols.map(c=>(c.label||"").trim());
-    // Store both raw and formatted values — date column needs raw value
+    // For date column: use raw value (cell.v = "Date(2024,1,1)") not formatted (cell.f = "01/02/2024")
+    // For other columns: use formatted value (cell.f) for display
     let rows=resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.f||cell.v))));
-    // Raw rows for date parsing — use cell.v (raw) not cell.f (formatted)
-    let rawRows=resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.v))));
+    // Per-cell raw values for date parsing
+    let rawCells=resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.v))));
     let hoff=1;
     if(!headers.some(h=>/tanggal|cabang|issue|sumber/i.test(h))&&rows.length){
       if(rows[0].some(v=>/tanggal|cabang|issue|sumber/i.test(v))){headers=rows[0];rows=rows.slice(1);hoff=2;}
@@ -364,7 +365,10 @@
     rows.forEach((r,i)=>{
       const rawCat=(r[ci.issue]||"").trim();if(!rawCat) return;
       const com=(r[ci.comment]||"").trim(),sum=ci.summary!=null?(r[ci.summary]||"").trim():"";
-      const rat=parseInt(r[ci.rating]),ds=(rawRows[i]?.[ci.date]||r[ci.date]||"").trim();
+      const rat=parseInt(r[ci.rating]);
+      // Use raw cell value for date (avoids DD/MM/YYYY ambiguity)
+      const dsRaw=(ci.date!=null?(rawCells[i+hoff-1]?.[ci.date]||""):"").trim();
+      const ds=dsRaw||((ci.date!=null?r[ci.date]:"")||"").trim();
       // Auto-status from Feedback column: filled = Solved, empty = Untouched
       const feedbackVal = ci.feedback!=null?(r[ci.feedback]||"").trim():"";
       const sheetStat = (ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched";
@@ -702,16 +706,34 @@
       const wb=XLSX.utils.book_new();
       const s1=XLSX.utils.json_to_sheet(plans.map((p,i)=>({["#"]:i+1,"Sub-Issue":p.sub,Volume:p.count,Impact:p.imp,"Strategic Action":p.action,Detail:p.detail,Owner:p.owner,Timeline:tlMap[p.tl]?.label||""})));
       s1['!cols']=Object.keys(plans[0]||{}).map(()=>({wch:22}));
-      XLSX.utils.book_append_sheet(wb,s1,"Summary");
-      const detail=plans.flatMap(p=>dispFilt.filter(f=>f.sub===p.sub).map(d=>({["Sub-Issue"]:p.sub,Impact:p.imp,"Strategic Action":p.action,Date:d.dateStr,Branch:d.branch,Source:d.source,Status:d.status,Rating:d.rating||"","Inti Permasalahan":d.intiPermasalahan})));
-      if(detail.length){const s2=XLSX.utils.json_to_sheet(detail);s2['!cols']=Object.keys(detail[0]).map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,s2,"All Complaints");}
+      XLSX.utils.book_append_sheet(wb,s1,"Action Plan Summary");
+      const detail=plans.flatMap(p=>dispFilt.filter(f=>f.sub===p.sub).map(d=>({
+        "Sub-Issue":p.sub,Impact:p.imp,"Strategic Action":p.action,Owner:p.owner,Timeline:tlMap[p.tl]?.label||"",
+        Date:d.dateStr,Branch:d.branch,"Nama Customer":d.customer||"",
+        Source:d.source,Status:d.status,Rating:d.rating||"","Inti Permasalahan":d.intiPermasalahan
+      })));
+      if(detail.length){const s2=XLSX.utils.json_to_sheet(detail);s2['!cols']=Object.keys(detail[0]).map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,s2,"Detail Complaints");}
       XLSX.writeFile(wb,`FTL_ActionPlan_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
     const expDrill=sub=>{
       const rows=dispFilt.filter(f=>f.sub===sub).map(d=>({["Sub-Issue"]:sub,Date:d.dateStr,Branch:d.branch,Source:d.source,Status:d.status,Rating:d.rating||"",Category:d.cat,"Inti Permasalahan":d.intiPermasalahan}));
       exportXLSX(rows,`FTL_${sub.replace(/[^a-zA-Z0-9]/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`,sub.slice(0,31));
     };
-    const expBrAll=()=>exportXLSX(branches.map((b,i)=>({"Rank":i+1,Branch:b.branch,"Total Issues":b.count,"Critical (HIGH)":b.critCt})),`FTL_Branches_${new Date().toISOString().split('T')[0]}.xlsx`,"Branch Report");
+    const expBrAll=()=>{
+      const wb=XLSX.utils.book_new();
+      const summary=branches.map((b,i)=>({"Rank":i+1,Branch:b.branch,"Total Issues":b.count,"Critical (HIGH)":b.critCt}));
+      const s1=XLSX.utils.json_to_sheet(summary);
+      s1['!cols']=Object.keys(summary[0]).map(()=>({wch:22}));
+      XLSX.utils.book_append_sheet(wb,s1,"Branch Summary");
+      const detail=branches.flatMap(b=>b.issues.map(d=>{
+        const p=plans0.find(pl=>pl.sub===d.sub)||{imp:"LOW",action:"—",owner:"—",tl:"short"};
+        return {Branch:b.branch,Date:d.dateStr,"Nama Customer":d.customer||"","Sub-Issue":d.sub,
+          Impact:p.imp,"Strategic Action":p.action,Owner:p.owner,Timeline:tlMap[p.tl]?.label||"",
+          Source:d.source,Status:d.status,Rating:d.rating||"","Inti Permasalahan":d.intiPermasalahan};
+      }));
+      if(detail.length){const s2=XLSX.utils.json_to_sheet(detail);s2['!cols']=Object.keys(detail[0]).map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,s2,"Detail Complaints");}
+      XLSX.writeFile(wb,`FTL_AllReport_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
 
     const SVG_DL=<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
     const G=({children,style={}})=><div className="glass" style={style}>{children}</div>;
@@ -1011,7 +1033,7 @@
           <div style={{padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.055)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.82)"}}>Top Affected Clubs</span>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <button onClick={expBrAll} className="pill-btn" style={{color:"#2D8C5A",fontSize:11,fontWeight:700,gap:5}}>{SVG_DL} Export Excel</button>
+              <button onClick={expBrAll} className="pill-btn" style={{color:"#2D8C5A",fontSize:11,fontWeight:700,gap:5}}>{SVG_DL} All Report</button>
               <span style={{fontSize:11,fontWeight:600,color:"rgba(0,0,0,0.40)",background:"rgba(0,0,0,0.05)",padding:"5px 12px",borderRadius:20}}>{branches.length} cabang</span>
             </div>
           </div>
@@ -1118,7 +1140,7 @@
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             <button onClick={expDetail} className="pill-btn" style={{color:"#2E6DB4",fontWeight:700,gap:6}}>{SVG_DL} Detail Logs</button>
             <button onClick={expAction} className="pill-btn" style={{color:"#7A52A8",fontWeight:700,gap:6}}>{SVG_DL} Action Plan</button>
-            <button onClick={expBrAll}  className="pill-btn" style={{color:"#2D8C5A",fontWeight:700,gap:6}}>{SVG_DL} Branch Report</button>
+            <button onClick={expBrAll}  className="pill-btn" style={{color:"#2D8C5A",fontWeight:700,gap:6}}>{SVG_DL} All Report</button>
           </div>
         </G>
 
