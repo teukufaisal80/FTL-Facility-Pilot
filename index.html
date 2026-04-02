@@ -9,6 +9,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script>
+    firebase.initializeApp({
+      databaseURL: "https://ftl-complaint-database-default-rtdb.asia-southeast1.firebasedatabase.app"
+    });
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -123,20 +130,40 @@
     { key:"OM",    label:"OM, FM, MC, PT",          match:/OM/i,      password:"clubftl",   color:"#2E6DB4" },
     { key:"GX",    label:"GX",                      match:/GX/i,      password:"gxftl",     color:"#2D8C5A" },
     { key:"PIL",   label:"Pilates",                 match:/Pilates/i, password:"pilatesftl",  color:"#7A52A8" },
-    { key:"ALL",   label:"All Access",              match:null,       password:"allaccessftl", color:"#1C1C1E" },
+    { key:"ALL",   label:"All Access",              match:null,       password:"allftl", color:"#1C1C1E" },
   ];
 
   // ── Month names ──
   const MONTHS_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
   const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
   // Also handle common variations
-  const MONTHS_ALT = ["januari","februari","maret","april","mei","juni","juli","agustus","september","oktober","november","desember"];
+  // All month variations including abbreviations
+  const MONTH_MAP = {
+    "januari":0,"jan":0,"january":0,
+    "februari":1,"feb":1,"february":1,
+    "maret":2,"mar":2,"march":2,
+    "april":3,"apr":3,
+    "mei":4,"may":4,
+    "juni":5,"jun":5,"june":5,
+    "juli":6,"jul":6,"july":6,
+    "agustus":7,"agu":7,"aug":7,"agust":7,"august":7,
+    "september":8,"sep":8,"sept":8,
+    "oktober":9,"okt":9,"oct":9,"october":9,
+    "november":10,"nov":10,
+    "desember":11,"des":11,"dec":11,"december":11
+  };
 
   // ── Sheet name parser ──
   function parseSheetName(name) {
     const n = name.trim().toLowerCase();
     let monthIdx = -1, year = null;
-    MONTHS_ALT.forEach((m,i)=>{ if(n.includes(m)) monthIdx=i; });
+    // Try longest match first to avoid "mar" matching "maret"
+    const sortedKeys = Object.keys(MONTH_MAP).sort((a,b)=>b.length-a.length);
+    for(const k of sortedKeys){
+      // Match whole word or at word boundary
+      const re = new RegExp('\\b'+k+'\\b','i');
+      if(re.test(n)){ monthIdx=MONTH_MAP[k]; break; }
+    }
     const yr = name.match(/\b(20\d{2}|19\d{2})\b/);
     if(yr) year = parseInt(yr[1]);
     let divKey = null;
@@ -147,6 +174,48 @@
   }
 
   // ── Classifiers ──
+  // ── Canonical club list ──
+  const CLUB_LIST = [
+    "Bendungan Hilir","Blok M","Merdeka","Satrio","SCBD","Mampang","Menteng",
+    "Teuku Umar","Gading Sunter","Cipondoh","Cibubur","Pondok Gede","Puri",
+    "Gunung Sahari","Green Garden","Rawamangun","Kalimalang","Ahmad Yani",
+    "AR Hakim","Depok Lama","Pondok Bambu","Cikarang","Dago","Sukajadi",
+    "Tanjung Duren","Bekasi Timur","Gandaria","Kemanggisan","Alam Sutera",
+    "Pahlawan","Pajajaran","Sawangan","Pamulam","KBP","Soekarno Hatta",
+    "Pasir Koja","Pasar Minggu","Mustika Jaya","Cireundeu","Tebet",
+    "Galaxy","Pondok Indah","Gubeng","Stride - Latumenten","Stride - Banceuy",
+    "Stride - Cibinong","Stride - Pecenongan","Stride - Gading Timur",
+    "Arjuna Utara","Kerobokan","Agora","Ciputra World Surabaya","Tomang",
+    "FTL Pilates - Gading Serpong","Green Lake City","Kebon Sirih",
+    "Puri Depok Mas","Citra Garden","Pahlawan"
+  ];
+
+  // Fuzzy match branch name to canonical list
+  function normalizeBranch(name) {
+    if(!name) return name;
+    const n = name.toLowerCase().trim();
+    // Exact match first
+    const exact = CLUB_LIST.find(c=>c.toLowerCase()===n);
+    if(exact) return exact;
+    // Partial match — find best overlap
+    let best = name, bestScore = 0;
+    for(const club of CLUB_LIST){
+      const cl = club.toLowerCase();
+      // Score: how many characters match
+      let score = 0;
+      const shorter = n.length < cl.length ? n : cl;
+      const longer  = n.length < cl.length ? cl : n;
+      if(longer.includes(shorter)) score = shorter.length * 2;
+      else {
+        // count common words
+        const wa = n.split(/\s+/), wb = cl.split(/\s+/);
+        score = wa.filter(w=>wb.some(w2=>w2.includes(w)||w.includes(w2))).length * 3;
+      }
+      if(score > bestScore && score >= 3){ bestScore=score; best=club; }
+    }
+    return best;
+  }
+
   function classifySub(issue, t) {
     const s=t.toLowerCase(), cat=issue.toLowerCase();
     if(cat.includes("fasilitas")||cat.includes("alat")||cat.includes("mesin")){
@@ -270,9 +339,10 @@
       const rat=parseInt(r[ci.rating]),ds=(r[ci.date]||"").trim();
       // Auto-status from Feedback column: filled = Solved, empty = Untouched
       const feedbackVal = ci.feedback!=null?(r[ci.feedback]||"").trim():"";
-      const rawStat = feedbackVal.length>0 ? "Solved" : ((ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched");
+      const sheetStat = (ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched";
+      const rawStat = feedbackVal.length>0 ? "Solved" : sheetStat;
       out.push({id:`${gidStr}_${i}`,realRow:i+hoff+1,gid:gidStr,dateStr:ds,dateParsed:parseDate(ds),
-        branch:(r[ci.branch]||"").trim(),cat:rawCat,source:(r[ci.source]||"").trim(),
+        branch:normalizeBranch((r[ci.branch]||"").trim()),cat:rawCat,source:(r[ci.source]||"").trim(),
         rating:isNaN(rat)?null:rat,intiPermasalahan:sum.length>2?sum:com,
         status:rawStat,originalStatus:rawStat,sub:classifySub(rawCat,com+" "+sum)});
     });
@@ -373,7 +443,22 @@
   // ════════════════════════════════════════
   function Dashboard({division,onLogout}){
     const [allData,setAllData]   = useState([]);
-    const [localStatus,setLStat] = useState({}); // web-only status overrides
+    const [localStatus,setLStat] = useState({}); // status overrides synced with Firebase
+    const [fbLoaded,setFbLoaded] = useState(false);
+    const [statusToast,setToast] = useState(null); // {id, state: "saving"|"saved"|"error"}
+
+    // Real-time listener — updates instantly when any user changes a status
+    useEffect(()=>{
+      const db = firebase.database();
+      const ref = db.ref("status");
+      ref.on("value", snapshot=>{
+        const data = snapshot.val();
+        if(data && typeof data==="object") setLStat(data);
+        setFbLoaded(true);
+      }, ()=>setFbLoaded(true));
+      // Cleanup listener on unmount
+      return ()=>ref.off("value");
+    },[]);
     const [filter,setFilter]     = useState("Semua");
     const [stFilt,setStFilt]     = useState("Semua Status");
     const [loading,setLoading]   = useState(true);
@@ -389,6 +474,7 @@
     const [dateTo,setTo]         = useState("");
     const [sheets,setSheets]     = useState([]);
     const drillRef               = useRef(null);
+    const branchRef              = useRef(null);
 
     // Derive data with localStatus overrides
     const dataWithStatus = useMemo(()=>allData.map(d=>({
@@ -397,6 +483,17 @@
 
     function updateStatus(rowId,ns){
       setLStat(prev=>({...prev,[rowId]:ns}));
+      setToast({id:rowId, state:"saving"});
+      firebase.database().ref(`status/${String(rowId)}`).set(ns)
+        .then(()=>{
+          setToast({id:rowId, state:"saved"});
+          setTimeout(()=>setToast(null), 2000);
+        })
+        .catch(e=>{
+          console.warn("Firebase write failed:",e);
+          setToast({id:rowId, state:"error"});
+          setTimeout(()=>setToast(null), 3000);
+        });
     }
 
     // Filter by division
@@ -507,7 +604,9 @@
       return `${MONTHS_ID[m1]} ${y1} – ${MONTHS_ID[m2]} ${y2}`;
     },[dateFrom,dateTo]);
 
-    const drillData = drillSub?dispFilt.filter(c=>c.sub===drillSub):[];
+    // drillSub can be a sub-issue name or a source name
+    const drillData = drillSub?dispFilt.filter(c=>c.sub===drillSub||c.source===drillSub):[];
+    const drillIsSource = drillSub && srcCts.some(([s])=>s===drillSub);
 
     // Auto-scroll to drill-down
     useEffect(()=>{
@@ -515,6 +614,13 @@
         setTimeout(()=>drillRef.current?.scrollIntoView({behavior:"smooth",block:"start"}),50);
       }
     },[drillSub]);
+
+    // Auto-scroll to branch drill-down
+    useEffect(()=>{
+      if(expBr&&branchRef.current){
+        setTimeout(()=>branchRef.current?.scrollIntoView({behavior:"smooth",block:"start"}),50);
+      }
+    },[expBr]);
 
     // Load data
     const loadData = useCallback(async(gidsList)=>{
@@ -717,8 +823,9 @@
             {srcCts.map(([src,ct],i)=>{
               const srcC={"Quick Response":"#2E6DB4","Google Review":"#B8332A","WhatsApp":"#2D8C5A","Instagram":"#7A52A8","In-Apps":"#A86428","Panggilan":"#8E8E93"}[src]||`hsl(${i*40},55%,45%)`;
               return(
-                <div key={src} style={{display:"flex",alignItems:"center",gap:12,marginBottom:11}}>
-                  <span style={{fontSize:12,color:"rgba(0,0,0,0.42)",fontWeight:500,width:118,textAlign:"right",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{src}</span>
+                <div key={src} onClick={()=>setDrill(drillSub===src?null:src)}
+                  style={{display:"flex",alignItems:"center",gap:12,marginBottom:11,cursor:"pointer",opacity:drillSub&&drillSub!==src?.4:1,transition:"opacity .2s"}}>
+                  <span style={{fontSize:12,color:drillSub===src?"rgba(0,0,0,0.80)":"rgba(0,0,0,0.42)",fontWeight:drillSub===src?700:500,width:118,textAlign:"right",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{src}</span>
                   <div className="pb"><div className="pf" style={{width:`${Math.max((ct/maxSrc)*100,4)}%`,background:srcC,boxShadow:"0 1px 6px rgba(0,0,0,0.10)"}}/></div>
                   <span style={{fontSize:13,fontWeight:800,color:"rgba(0,0,0,0.80)",width:22,textAlign:"right",flexShrink:0}}>{ct}</span>
                 </div>
@@ -735,7 +842,7 @@
             <span style={{fontSize:10,fontWeight:600,color:"rgba(0,0,0,0.36)",background:"rgba(0,0,0,0.05)",padding:"4px 10px",borderRadius:20}}>Dampak × Waktu</span>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            {[{k:"hE",t:"🔴 Prioritas Mendesak",bg:"rgba(185,50,42,0.07)",bold:true},{k:"hH",t:"🟠 Gerakan Strategis",bg:"rgba(175,100,40,0.07)"},{k:"lE",t:"🟢 Cepat Ditangani",bg:"rgba(45,140,90,0.07)"},{k:"lH",t:"⚪ Pantau & Evaluasi",bg:"rgba(142,142,147,0.06)"}].map(q=>(
+            {[{k:"hE",t:"🔴 Prioritas",bg:"rgba(185,50,42,0.07)",bold:true},{k:"hH",t:"🟠 Strategic Action",bg:"rgba(175,100,40,0.07)"},{k:"lE",t:"🟢 Easy & Quick Win",bg:"rgba(45,140,90,0.07)"},{k:"lH",t:"⚪ Bukan Prioritas",bg:"rgba(142,142,147,0.06)"}].map(q=>(
               <div key={q.k} className="quad" style={{background:q.bg}}>
                 <div style={{fontSize:11,fontWeight:800,color:"rgba(0,0,0,0.65)",marginBottom:12}}>{q.t}</div>
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -877,19 +984,24 @@
               <span style={{fontSize:11,fontWeight:600,color:"rgba(0,0,0,0.40)",background:"rgba(0,0,0,0.05)",padding:"5px 12px",borderRadius:20}}>{branches.length} cabang</span>
             </div>
           </div>
+          {/* Split into 2 columns: left = top half sorted, right = bottom half */}
           <div style={{padding:"18px 28px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:52}}>
-            {branches.slice(0,24).map((b,i)=>(
-              <div key={b.branch} style={{display:"flex",alignItems:"center",gap:12,padding:"7px 0",borderBottom:"1px solid rgba(0,0,0,0.04)",cursor:"pointer"}}
-                onClick={()=>setExpBr(expBr===b.branch?null:b.branch)}
-                onMouseEnter={e=>e.currentTarget.style.opacity=.72} onMouseLeave={e=>e.currentTarget.style.opacity=1}>
-                <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontWeight:500,width:108,textAlign:"right",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.branch}</span>
-                <div className="pb"><div className="pf" style={{width:`${b.pct}%`,background:b.barColor,boxShadow:`0 1px 6px ${b.barColor}40`}}/></div>
-                <span style={{fontSize:13,fontWeight:800,color:b.barColor,width:22,textAlign:"right",flexShrink:0}}>{b.count}</span>
+            {[0,1].map(col=>(
+              <div key={col}>
+                {branches.filter((_,i)=> col===0 ? i<Math.ceil(branches.length/2) : i>=Math.ceil(branches.length/2)).slice(0,12).map((b,i)=>(
+                  <div key={b.branch} style={{display:"flex",alignItems:"center",gap:12,padding:"7px 0",borderBottom:"1px solid rgba(0,0,0,0.04)",cursor:"pointer"}}
+                    onClick={()=>setExpBr(expBr===b.branch?null:b.branch)}
+                    onMouseEnter={e=>e.currentTarget.style.opacity=.72} onMouseLeave={e=>e.currentTarget.style.opacity=1}>
+                    <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontWeight:500,width:108,textAlign:"right",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.branch}</span>
+                    <div className="pb"><div className="pf" style={{width:`${b.pct}%`,background:b.barColor,boxShadow:`0 1px 6px ${b.barColor}40`}}/></div>
+                    <span style={{fontSize:13,fontWeight:800,color:b.barColor,width:22,textAlign:"right",flexShrink:0}}>{b.count}</span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
           {branches.filter(b=>b.branch===expBr).map(bInfo=>(
-            <div key={bInfo.branch} style={{margin:"12px 20px 20px",borderRadius:18,background:"rgba(255,255,255,0.45)",backdropFilter:"blur(20px)",border:"1px solid rgba(0,0,0,0.07)",overflow:"hidden"}}>
+            <div key={bInfo.branch} ref={branchRef} style={{margin:"12px 20px 20px",borderRadius:18,background:"rgba(255,255,255,0.45)",backdropFilter:"blur(20px)",border:"1px solid rgba(0,0,0,0.07)",overflow:"hidden"}}>
               <div style={{padding:"12px 20px",borderBottom:"1px solid rgba(0,0,0,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <span style={{fontWeight:800,color:"rgba(0,0,0,0.82)",fontSize:14}}>{bInfo.branch}</span>
@@ -925,6 +1037,45 @@
             </div>
           ))}
         </G>
+
+        {/* STATUS TOAST */}
+        {statusToast&&(
+          <div style={{
+            position:"fixed",bottom:28,right:28,zIndex:9999,
+            background: statusToast.state==="saving" ? "rgba(28,28,30,0.88)" :
+                        statusToast.state==="saved"  ? "rgba(45,140,90,0.90)" :
+                                                       "rgba(185,50,42,0.90)",
+            backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+            borderTop:"1px solid rgba(255,255,255,0.25)",
+            borderLeft:"1px solid rgba(255,255,255,0.20)",
+            borderRight:"1px solid rgba(255,255,255,0.15)",
+            borderBottom:"1px solid rgba(255,255,255,0.10)",
+            borderRadius:16,padding:"12px 20px",
+            boxShadow:"0 8px 32px rgba(0,0,0,0.20),inset 0 0.5px 0 rgba(255,255,255,0.30)",
+            display:"flex",alignItems:"center",gap:10,
+            animation:"fu 0.25s ease both",
+            minWidth:200
+          }}>
+            {statusToast.state==="saving" && (
+              <>
+                <div style={{width:14,height:14,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"#fff",borderRadius:"50%"}} className="spin"/>
+                <span style={{fontSize:13,fontWeight:600,color:"#fff"}}>Menyimpan...</span>
+              </>
+            )}
+            {statusToast.state==="saved" && (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span style={{fontSize:13,fontWeight:600,color:"#fff"}}>Status tersimpan</span>
+              </>
+            )}
+            {statusToast.state==="error" && (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span style={{fontSize:13,fontWeight:600,color:"#fff"}}>Gagal menyimpan</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* EXPORT FOOTER */}
         <G style={{padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
