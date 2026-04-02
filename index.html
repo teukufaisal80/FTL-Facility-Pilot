@@ -663,31 +663,36 @@
 
     useEffect(()=>{
       if(WEB_APP_URL.includes("MASUKKAN")){loadData(["0"]);return;}
-      const hardTimeout=setTimeout(()=>loadData(["0"]),15000);
-      const cb="cb_"+Date.now();
-      window[cb]=d=>{
-        clearTimeout(hardTimeout);delete window[cb];
-        if(Array.isArray(d)&&d.length){
-          console.log("[FTL] Apps Script returned", d.length, "sheets:", d.map(s=>s.name));
-          // Filter sheets that have valid month+year in name
-          const sh=d.filter(s=>{
-            const p=parseSheetName(s.name);
-            if(!p.valid) console.log("[FTL] SKIP sheet (no month/year):", s.name);
-            return p.valid;
-          });
-          console.log("[FTL] Valid sheets:", sh.map(s=>s.name));
-          const toLoad=sh.length?sh:d;
-          setSheets(toLoad.map(s=>({name:s.name,id:String(s.id)})));
-          loadData(toLoad.map(s=>String(s.id)));
-        }else{
-          console.log("[FTL] Apps Script returned no valid data, fallback gid=0");
-          loadData(["0"]);
-        }
-      };
-      const s=document.createElement("script");
-      s.src=`${WEB_APP_URL}${WEB_APP_URL.includes("?")?"&":"?"}callback=${cb}`;
-      s.onerror=()=>{clearTimeout(hardTimeout);delete window[cb];loadData(["0"]);};
-      document.head.appendChild(s);
+
+      // Use fetch instead of JSONP — works from GitHub Pages
+      fetch(WEB_APP_URL)
+        .then(r=>r.json())
+        .then(d=>{
+          if(Array.isArray(d)&&d.length){
+            const sh=d.filter(s=>parseSheetName(s.name).valid);
+            const toLoad=sh.length?sh:d;
+            setSheets(toLoad.map(s=>({name:s.name,id:String(s.id)})));
+            loadData(toLoad.map(s=>String(s.id)));
+          }else{loadData(["0"]);}
+        })
+        .catch(()=>{
+          // fetch failed (CORS) — try JSONP fallback
+          const hardTimeout=setTimeout(()=>loadData(["0"]),10000);
+          const cb="cb_"+Date.now();
+          window[cb]=d=>{
+            clearTimeout(hardTimeout);delete window[cb];
+            if(Array.isArray(d)&&d.length){
+              const sh=d.filter(s=>parseSheetName(s.name).valid);
+              const toLoad=sh.length?sh:d;
+              setSheets(toLoad.map(s=>({name:s.name,id:String(s.id)})));
+              loadData(toLoad.map(s=>String(s.id)));
+            }else{loadData(["0"]);}
+          };
+          const s=document.createElement("script");
+          s.src=`${WEB_APP_URL}?callback=${cb}`;
+          s.onerror=()=>{clearTimeout(hardTimeout);delete window[cb];loadData(["0"]);};
+          document.head.appendChild(s);
+        });
     },[]);
 
     // Exports
