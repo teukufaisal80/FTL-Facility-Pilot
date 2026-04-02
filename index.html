@@ -339,15 +339,17 @@
   function parseSheetResp(resp,gidStr){
     if(!resp?.table) return [];
     let headers=resp.table.cols.map(c=>(c.label||"").trim());
-    // For date column: use raw value (cell.v = "Date(2024,1,1)") not formatted (cell.f = "01/02/2024")
-    // For other columns: use formatted value (cell.f) for display
-    let rows=resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.f||cell.v))));
-    // Per-cell raw values for date parsing
-    let rawCells=resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.v))));
+    // Map rows: keep both formatted (f) and raw (v) per cell
+    // cells[row][col] = {f: formatted string, v: raw string}
+    let cells=resp.table.rows.map(r=>r.c.map(cell=>({
+      f:(!cell||cell.v==null?"":String(cell.f||cell.v)),
+      v:(!cell||cell.v==null?"":String(cell.v))
+    })));
+    let rows=cells.map(r=>r.map(cell=>cell.f));
     let hoff=1;
     if(!headers.some(h=>/tanggal|cabang|issue|sumber/i.test(h))&&rows.length){
       if(rows[0].some(v=>/tanggal|cabang|issue|sumber/i.test(v))){
-        headers=rows[0];rows=rows.slice(1);rawCells=rawCells.slice(1);hoff=2;
+        headers=rows[0];rows=rows.slice(1);cells=cells.slice(1);hoff=2;
       }
     }
     const h=headers.map(x=>x.toLowerCase().trim()),ci={};
@@ -369,8 +371,8 @@
       const com=(r[ci.comment]||"").trim(),sum=ci.summary!=null?(r[ci.summary]||"").trim():"";
       const rat=parseInt(r[ci.rating]);
       // Use raw cell value for date (avoids DD/MM/YYYY ambiguity)
-      const dsRaw=(ci.date!=null?(rawCells[i]?.[ci.date]||""):"").trim();
-      const ds=dsRaw||((ci.date!=null?r[ci.date]:"")||"").trim();
+      // Use raw value for date to avoid DD/MM/YYYY ambiguity
+      const ds=(ci.date!=null?(cells[i]?.[ci.date]?.v||r[ci.date]||""):(r[ci.date]||"")).trim();
       // Auto-status from Feedback column: filled = Solved, empty = Untouched
       const feedbackVal = ci.feedback!=null?(r[ci.feedback]||"").trim():"";
       const sheetStat = (ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched";
