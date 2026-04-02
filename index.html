@@ -122,26 +122,26 @@
     { key:"FCM",   label:"FCM, FO, Security, OB",  match:/FCM/i,     password:"fcmftl",    color:"#B8332A" },
     { key:"OM",    label:"OM, FM, MC, PT",          match:/OM/i,      password:"clubftl",   color:"#2E6DB4" },
     { key:"GX",    label:"GX",                      match:/GX/i,      password:"gxftl",     color:"#2D8C5A" },
-    { key:"PIL",   label:"Pilates",                 match:/Pilates/i, password:"pilatest",  color:"#7A52A8" },
+    { key:"PIL",   label:"Pilates",                 match:/Pilates/i, password:"pilatesftl",  color:"#7A52A8" },
     { key:"ALL",   label:"All Access",              match:null,       password:"allaccessftl", color:"#1C1C1E" },
   ];
 
   // ── Month names ──
   const MONTHS_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
   const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+  // Also handle common variations
+  const MONTHS_ALT = ["januari","februari","maret","april","mei","juni","juli","agustus","september","oktober","november","desember"];
 
   // ── Sheet name parser ──
-  // "Maret 2026 (FCM,FO,SECURITY,OB)" → { monthIdx:2, year:2026, divKey:"FCM" }
   function parseSheetName(name) {
-    const n = name.trim();
+    const n = name.trim().toLowerCase();
     let monthIdx = -1, year = null;
-    MONTHS_ID.forEach((m,i)=>{ if(n.toLowerCase().includes(m.toLowerCase())) monthIdx=i; });
-    const yr = n.match(/\b(20\d{2}|19\d{2})\b/);
+    MONTHS_ALT.forEach((m,i)=>{ if(n.includes(m)) monthIdx=i; });
+    const yr = name.match(/\b(20\d{2}|19\d{2})\b/);
     if(yr) year = parseInt(yr[1]);
-    // find division
     let divKey = null;
     for(const d of DIVISIONS){
-      if(d.match && d.match.test(n)){ divKey=d.key; break; }
+      if(d.match && d.match.test(name)){ divKey=d.key; break; }
     }
     return { monthIdx, year, divKey, valid: monthIdx>=0 && year!==null };
   }
@@ -261,13 +261,16 @@
       if(v==="issue"||v.includes("kategori")||v.includes("category")) ci.issue=i;
       if(v.includes("inti permasalahan")||v.includes("summary")) ci.summary=i;
       if(v==="status"||v.includes("status pelacakan")) ci.status=i;
+      if(v.includes("feedback")) ci.feedback=i;
     });
     const out=[];
     rows.forEach((r,i)=>{
       const rawCat=(r[ci.issue]||"").trim();if(!rawCat) return;
       const com=(r[ci.comment]||"").trim(),sum=ci.summary!=null?(r[ci.summary]||"").trim():"";
       const rat=parseInt(r[ci.rating]),ds=(r[ci.date]||"").trim();
-      const rawStat=((ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched");
+      // Auto-status from Feedback column: filled = Solved, empty = Untouched
+      const feedbackVal = ci.feedback!=null?(r[ci.feedback]||"").trim():"";
+      const rawStat = feedbackVal.length>0 ? "Solved" : ((ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched");
       out.push({id:`${gidStr}_${i}`,realRow:i+hoff+1,gid:gidStr,dateStr:ds,dateParsed:parseDate(ds),
         branch:(r[ci.branch]||"").trim(),cat:rawCat,source:(r[ci.source]||"").trim(),
         rating:isNaN(rat)?null:rat,intiPermasalahan:sum.length>2?sum:com,
@@ -485,10 +488,10 @@
         if(!d.dateParsed) return;
         const y=d.dateParsed.getFullYear(),m=d.dateParsed.getMonth();
         const key=`${y}-${String(m).padStart(2,'0')}`;
-        if(!map[key]) map[key]={label:MONTHS_SHORT[m],year:y,month:m};
+        if(!map[key]) map[key]={label:MONTHS_SHORT[m],labelFull:MONTHS_ID[m],year:y,month:m};
       });
-      return Object.values(map).sort((a,b)=>a.year-b.year||a.month-b.month).map(({label,year,month})=>({
-        label,from:toISO(new Date(year,month,1)),to:toISO(new Date(year,month+1,0)),month,year
+      return Object.values(map).sort((a,b)=>a.year-b.year||a.month-b.month).map(({label,labelFull,year,month})=>({
+        label,labelFull,from:toISO(new Date(year,month,1)),to:toISO(new Date(year,month+1,0)),month,year
       }));
     },[divData]);
 
@@ -499,9 +502,9 @@
       const d1=new Date(dateFrom),d2=new Date(dateTo);
       if(isNaN(d1)||isNaN(d2)) return "";
       const m1=d1.getMonth(),m2=d2.getMonth(),y1=d1.getFullYear(),y2=d2.getFullYear();
-      if(m1===m2&&y1===y2) return `${MONTHS_SHORT[m1]} ${y1}`;
-      if(y1===y2) return `${MONTHS_SHORT[m1]} – ${MONTHS_SHORT[m2]} ${y1}`;
-      return `${MONTHS_SHORT[m1]} ${y1} – ${MONTHS_SHORT[m2]} ${y2}`;
+      if(m1===m2&&y1===y2) return `${MONTHS_ID[m1]} ${y1}`;
+      if(y1===y2) return `${MONTHS_ID[m1]} – ${MONTHS_ID[m2]} ${y1}`;
+      return `${MONTHS_ID[m1]} ${y1} – ${MONTHS_ID[m2]} ${y2}`;
     },[dateFrom,dateTo]);
 
     const drillData = drillSub?dispFilt.filter(c=>c.sub===drillSub):[];
@@ -624,7 +627,7 @@
                   <select value={monthRanges.find(mr=>isMonthActive(mr))?`${monthRanges.find(mr=>isMonthActive(mr)).year}-${monthRanges.find(mr=>isMonthActive(mr)).month}`:"custom"}
                     onChange={e=>{const mr=monthRanges.find(m=>`${m.year}-${m.month}`===e.target.value);if(mr){setFrom(mr.from);setTo(mr.to);}}}
                     style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%",fontSize:14}}>
-                    {monthRanges.map(mr=><option key={`${mr.year}-${mr.month}`} value={`${mr.year}-${mr.month}`}>{mr.label} {mr.year}</option>)}
+                    {monthRanges.map(mr=><option key={`${mr.year}-${mr.month}`} value={`${mr.year}-${mr.month}`}>{mr.labelFull} {mr.year}</option>)}
                     {!monthRanges.some(mr=>isMonthActive(mr))&&<option value="custom">{smartLabel}</option>}
                   </select>
                 </div>
