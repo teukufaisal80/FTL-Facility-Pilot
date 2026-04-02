@@ -467,6 +467,7 @@
     const [localStatus,setLStat] = useState({}); // status overrides synced with Firebase
     const [fbLoaded,setFbLoaded] = useState(false);
     const [statusToast,setToast] = useState(null); // {id, state: "saving"|"saved"|"error"}
+    const [divData,setDivData]   = useState([]); // division-filtered data
 
     // Real-time listener — updates instantly when any user changes a status
     useEffect(()=>{
@@ -518,16 +519,19 @@
         });
     }
 
-    // Filter by division
-    const divData = useMemo(()=>{
-      if(division.key==="ALL") return dataWithStatus;
+    // Filter by division — useEffect so it always runs after sheets+allData are both ready
+    useEffect(()=>{
+      if(division.key==="ALL"){ setDivData(dataWithStatus); return; }
       const div = DIVISIONS.find(d=>d.key===division.key);
-      if(!div||!div.match) return dataWithStatus;
+      if(!div||!div.match){ setDivData(dataWithStatus); return; }
       const sheetList = sheetsRef.current.length ? sheetsRef.current : sheets;
-      if(!sheetList.length) return dataWithStatus;
+      if(!sheetList.length){ setDivData(dataWithStatus); return; }
       const matchingGids = sheetList.filter(s=>div.match.test(s.name)).map(s=>s.id);
-      if(!matchingGids.length) return dataWithStatus;
-      return dataWithStatus.filter(d=>matchingGids.includes(d.gid));
+      console.log("[FTL] Division",division.key,"matchingGids:",matchingGids.length,"from",sheetList.length,"sheets");
+      if(!matchingGids.length){ setDivData(dataWithStatus); return; }
+      const filtered = dataWithStatus.filter(d=>matchingGids.includes(d.gid));
+      console.log("[FTL] divData filtered:",filtered.length,"from",dataWithStatus.length);
+      setDivData(filtered);
     },[dataWithStatus,division,sheets,allData]);
 
     // Date filter
@@ -661,8 +665,6 @@
           setTo(toISO(new Date(latest.getFullYear(),latest.getMonth()+1,0)));
         }
         setAllData(merged); setLF(new Date()); setLoading(false);
-        // Force sheets state sync after data loads
-        setSheets(s=>s.length?[...s]:s);
       }catch(e){setErr(e.message);setLoading(false);}
     },[]);
 
