@@ -346,7 +346,9 @@
     let rawCells=resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.v))));
     let hoff=1;
     if(!headers.some(h=>/tanggal|cabang|issue|sumber/i.test(h))&&rows.length){
-      if(rows[0].some(v=>/tanggal|cabang|issue|sumber/i.test(v))){headers=rows[0];rows=rows.slice(1);hoff=2;}
+      if(rows[0].some(v=>/tanggal|cabang|issue|sumber/i.test(v))){
+        headers=rows[0];rows=rows.slice(1);rawCells=rawCells.slice(1);hoff=2;
+      }
     }
     const h=headers.map(x=>x.toLowerCase().trim()),ci={};
     h.forEach((v,i)=>{
@@ -367,7 +369,7 @@
       const com=(r[ci.comment]||"").trim(),sum=ci.summary!=null?(r[ci.summary]||"").trim():"";
       const rat=parseInt(r[ci.rating]);
       // Use raw cell value for date (avoids DD/MM/YYYY ambiguity)
-      const dsRaw=(ci.date!=null?(rawCells[i+hoff-1]?.[ci.date]||""):"").trim();
+      const dsRaw=(ci.date!=null?(rawCells[i]?.[ci.date]||""):"").trim();
       const ds=dsRaw||((ci.date!=null?r[ci.date]:"")||"").trim();
       // Auto-status from Feedback column: filled = Solved, empty = Untouched
       const feedbackVal = ci.feedback!=null?(r[ci.feedback]||"").trim():"";
