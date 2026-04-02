@@ -494,6 +494,7 @@
     const [dateFrom,setFrom]     = useState("");
     const [dateTo,setTo]         = useState("");
     const [sheets,setSheets]     = useState([]);
+    const sheetsRef              = useRef([]);
     const drillRef               = useRef(null);
     const branchRef              = useRef(null);
 
@@ -517,14 +518,15 @@
         });
     }
 
-    // Filter by division — match sheets by division regex
+    // Filter by division — use sheetsRef for latest value without waiting for state update
     const divData = useMemo(()=>{
       if(division.key==="ALL") return dataWithStatus;
       const div = DIVISIONS.find(d=>d.key===division.key);
       if(!div||!div.match) return dataWithStatus;
-      const matchingGids = sheets.filter(s=>div.match.test(s.name)).map(s=>s.id);
-      // If no matching sheets yet (still loading), show nothing rather than all data
-      if(!matchingGids.length) return [];
+      // Use sheetsRef for immediate value, fall back to sheets state
+      const sheetList = sheetsRef.current.length ? sheetsRef.current : sheets;
+      const matchingGids = sheetList.filter(s=>div.match.test(s.name)).map(s=>s.id);
+      if(!matchingGids.length) return dataWithStatus; // no sheets loaded yet, show all
       return dataWithStatus.filter(d=>matchingGids.includes(d.gid));
     },[dataWithStatus,division,sheets]);
 
@@ -653,6 +655,7 @@
         if(!merged.length) throw new Error("Tidak ada data. Pastikan spreadsheet sudah dibagikan ke 'Anyone with the link'.");
         const vd=merged.map(d=>d.dateParsed).filter(Boolean).sort((a,b)=>b-a);
         if(vd.length){
+          // Default to most recent month in data
           const latest=vd[0];
           setFrom(toISO(new Date(latest.getFullYear(),latest.getMonth(),1)));
           setTo(toISO(new Date(latest.getFullYear(),latest.getMonth()+1,0)));
@@ -671,9 +674,8 @@
           const sh=d.filter(s=>parseSheetName(s.name).valid);
           const toLoad=sh.length?sh:d;
           const sheetObjs=toLoad.map(s=>({name:s.name,id:String(s.id)}));
-          // Set sheets first, then load — use callback to ensure sheets state is used
+          sheetsRef.current=sheetObjs;
           setSheets(sheetObjs);
-          // Pass gids directly to loadData — don't rely on sheets state
           loadData(sheetObjs.map(s=>s.id));
         })
         .catch(e=>{
