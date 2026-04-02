@@ -336,7 +336,10 @@
   function parseSheetResp(resp,gidStr){
     if(!resp?.table) return [];
     let headers=resp.table.cols.map(c=>(c.label||"").trim());
+    // Store both raw and formatted values — date column needs raw value
     let rows=resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.f||cell.v))));
+    // Raw rows for date parsing — use cell.v (raw) not cell.f (formatted)
+    let rawRows=resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.v))));
     let hoff=1;
     if(!headers.some(h=>/tanggal|cabang|issue|sumber/i.test(h))&&rows.length){
       if(rows[0].some(v=>/tanggal|cabang|issue|sumber/i.test(v))){headers=rows[0];rows=rows.slice(1);hoff=2;}
@@ -357,7 +360,7 @@
     rows.forEach((r,i)=>{
       const rawCat=(r[ci.issue]||"").trim();if(!rawCat) return;
       const com=(r[ci.comment]||"").trim(),sum=ci.summary!=null?(r[ci.summary]||"").trim():"";
-      const rat=parseInt(r[ci.rating]),ds=(r[ci.date]||"").trim();
+      const rat=parseInt(r[ci.rating]),ds=(rawRows[i]?.[ci.date]||r[ci.date]||"").trim();
       // Auto-status from Feedback column: filled = Solved, empty = Untouched
       const feedbackVal = ci.feedback!=null?(r[ci.feedback]||"").trim():"";
       const sheetStat = (ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched";
