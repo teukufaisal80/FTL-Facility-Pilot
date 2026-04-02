@@ -191,38 +191,59 @@
   ];
 
   // Fuzzy match branch name to canonical list
+  // If no good match found, return original name (supports new clubs automatically)
   function normalizeBranch(name) {
     if(!name) return name;
     const n = name.toLowerCase().trim();
-    // Exact match first
+    // Exact match first (case-insensitive)
     const exact = CLUB_LIST.find(c=>c.toLowerCase()===n);
     if(exact) return exact;
-    // Partial match — find best overlap
+    // Try contains match
+    const contains = CLUB_LIST.find(c=>c.toLowerCase()===n || n===c.toLowerCase());
+    if(contains) return contains;
+    // Fuzzy: score by common words
     let best = name, bestScore = 0;
     for(const club of CLUB_LIST){
       const cl = club.toLowerCase();
-      // Score: how many characters match
-      let score = 0;
-      const shorter = n.length < cl.length ? n : cl;
-      const longer  = n.length < cl.length ? cl : n;
-      if(longer.includes(shorter)) score = shorter.length * 2;
-      else {
-        // count common words
-        const wa = n.split(/\s+/), wb = cl.split(/\s+/);
-        score = wa.filter(w=>wb.some(w2=>w2.includes(w)||w.includes(w2))).length * 3;
+      if(cl.includes(n)||n.includes(cl)){
+        const score = Math.min(cl.length,n.length)*2;
+        if(score>bestScore){bestScore=score;best=club;}
+      } else {
+        const wa=n.split(/\s+/),wb=cl.split(/\s+/);
+        const score=wa.filter(w=>w.length>2&&wb.some(w2=>w2.includes(w)||w.includes(w2))).length*3;
+        if(score>bestScore&&score>=3){bestScore=score;best=club;}
       }
-      if(score > bestScore && score >= 3){ bestScore=score; best=club; }
     }
-    return best;
+    // Only normalize if confidence is high enough, else keep original
+    if(bestScore>=4) return best;
+    return name; // new club — keep as-is, will show up automatically
   }
+
+  // Keywords that indicate gym equipment specifically
+  const GYM_EQUIPMENT_KW = /treadmill|dumbbell|barbell|barbel|bench|cable|smith|rack|squat|leg press|lat pull|rowing|elliptical|spin bike|sepeda|kardio|cardio|beban|plate|dumbell|kettlebell|pull up|dip|mesin gym|alat gym|alat fitness|fitness equipment|gym equipment|alat latihan|alat olahraga/i;
+  // Keywords that indicate facilities (NOT gym equipment)
+  const FACILITY_KW = /ac|loker|locker|shower|toilet|wc|kamar mandi|parkir|wifi|internet|lift|escalator|lobby|resepsionis|meja|kursi|cermin|kaca|lampu|listrik|air|kran|wastafel|dispenser|sabun|tissue|handuk|hairdryer|catokan|sauna|steam|kolam|pool/i;
 
   function classifySub(issue, t) {
     const s=t.toLowerCase(), cat=issue.toLowerCase();
+    const fullText = (cat + " " + s).toLowerCase();
+
     if(cat.includes("fasilitas")||cat.includes("alat")||cat.includes("mesin")){
       if(/bocor|retak|atap|gedung|toilet|wc|bau/.test(s)) return "Fasilitas Lainnya";
-      if(/rusak|stuck|seret|lepas|dol|kendor|macet/.test(s)) return "Alat Rusak";
-      if(/tua|lama|second|upgrade|ganti|label|bahaya|miring/.test(s)) return "Equipment Issue";
+      // Check if it's about gym equipment specifically
+      if(GYM_EQUIPMENT_KW.test(fullText) && !FACILITY_KW.test(fullText)){
+        if(/rusak|stuck|seret|lepas|dol|kendor|macet|mati|error|tidak berfungsi/.test(s)) return "Alat Rusak";
+        if(/tua|lama|second|upgrade|ganti|label|bahaya|miring|karatan|usang/.test(s)) return "Equipment Issue";
+        return "Alat Rusak";
+      }
+      if(/rusak|stuck|seret|lepas|dol|kendor|macet/.test(s) && GYM_EQUIPMENT_KW.test(fullText)) return "Alat Rusak";
+      if(/tua|lama|second|upgrade|ganti|label|bahaya|miring/.test(s) && GYM_EQUIPMENT_KW.test(fullText)) return "Equipment Issue";
       return "Fasilitas Lainnya";
+    }
+    // Direct mention of gym equipment in text
+    if(GYM_EQUIPMENT_KW.test(fullText) && !FACILITY_KW.test(fullText)){
+      if(/rusak|stuck|seret|lepas|dol|kendor|macet|mati|error|tidak berfungsi|patah|sobek/.test(s)) return "Alat Rusak";
+      if(/tua|lama|second|upgrade|ganti|bahaya|miring|karatan|usang/.test(s)) return "Equipment Issue";
     }
     if(cat.includes("parkir")) return /pung|liar|paksa|bayar|uang|tarif|mahal/.test(s)?"Pungli / Biaya":"Akses Parkir";
     if(cat.includes("staff")||cat.includes("karyawan")||cat.includes("ob")) return "Staff & Karyawan";
@@ -647,17 +668,21 @@
       window[cb]=d=>{
         clearTimeout(hardTimeout);delete window[cb];
         if(Array.isArray(d)&&d.length){
-          // Filter: only sheets from Dec 2025 onwards
-          // Load ALL sheets — filter by date range happens in UI
-          // Only skip sheets that have no valid month/year in name (e.g. helper sheets)
+          console.log("[FTL] Apps Script returned", d.length, "sheets:", d.map(s=>s.name));
+          // Filter sheets that have valid month+year in name
           const sh=d.filter(s=>{
             const p=parseSheetName(s.name);
-            return p.valid; // must have a recognizable month and year
+            if(!p.valid) console.log("[FTL] SKIP sheet (no month/year):", s.name);
+            return p.valid;
           });
+          console.log("[FTL] Valid sheets:", sh.map(s=>s.name));
           const toLoad=sh.length?sh:d;
           setSheets(toLoad.map(s=>({name:s.name,id:String(s.id)})));
           loadData(toLoad.map(s=>String(s.id)));
-        }else{loadData(["0"]);}
+        }else{
+          console.log("[FTL] Apps Script returned no valid data, fallback gid=0");
+          loadData(["0"]);
+        }
       };
       const s=document.createElement("script");
       s.src=`${WEB_APP_URL}${WEB_APP_URL.includes("?")?"&":"?"}callback=${cb}`;
@@ -953,12 +978,12 @@
                             </div>
                             <div style={{display:"flex",flexDirection:"column",gap:8}}>
                               {dispFilt.filter(f=>f.sub===p.sub).slice(0,expRL).map((d,idx)=>(
-                                <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-                                  <span style={{fontWeight:700,color:"rgba(0,0,0,0.80)",fontSize:13}}>{d.branch}</span>
-                                  <span style={{fontSize:11,color:"rgba(0,0,0,0.30)"}}>{d.dateStr||"N/A"}</span>
-                                  {d.source&&<span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"rgba(0,0,0,0.38)",background:"rgba(0,0,0,0.06)",padding:"2px 8px",borderRadius:20}}>{d.source}</span>}
+                                <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"160px 90px 100px 140px 1fr",alignItems:"center",gap:12}}>
+                                  <span style={{fontWeight:700,color:"rgba(0,0,0,0.80)",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.branch}</span>
+                                  <span style={{fontSize:11,color:"rgba(0,0,0,0.38)",whiteSpace:"nowrap"}}>{d.dateStr||"N/A"}</span>
+                                  <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"rgba(0,0,0,0.38)",background:"rgba(0,0,0,0.06)",padding:"2px 8px",borderRadius:20,textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.source||"—"}</span>
                                   <StatusSelect value={d.status} rowId={d.id} onUpdate={updateStatus} disabled={false}/>
-                                  <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontStyle:"italic",flex:1}}>"{d.intiPermasalahan}"</span>
+                                  <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>"{d.intiPermasalahan}"</span>
                                 </div>
                               ))}
                             </div>
@@ -1021,12 +1046,12 @@
                   {bInfo.issues.slice(0,brLim).map((d,idx)=>{
                     const imp=plans0.find(p=>p.sub===d.sub)?.imp||'LOW';
                     return(
-                      <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                      <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"80px 160px 90px 140px 1fr",alignItems:"center",gap:12}}>
                         <ImpBadge imp={imp}/>
-                        <span style={{fontWeight:700,color:"rgba(0,0,0,0.80)",fontSize:13}}>{d.sub}</span>
-                        <span style={{fontSize:11,color:"rgba(0,0,0,0.30)"}}>{d.dateStr||"N/A"}</span>
+                        <span style={{fontWeight:700,color:"rgba(0,0,0,0.80)",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.sub}</span>
+                        <span style={{fontSize:11,color:"rgba(0,0,0,0.38)",whiteSpace:"nowrap"}}>{d.dateStr||"N/A"}</span>
                         <StatusSelect value={d.status} rowId={d.id} onUpdate={updateStatus} disabled={false}/>
-                        <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontStyle:"italic",flex:1}}>"{d.intiPermasalahan}"</span>
+                        <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>"{d.intiPermasalahan}"</span>
                       </div>
                     );
                   })}
