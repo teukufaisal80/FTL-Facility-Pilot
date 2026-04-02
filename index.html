@@ -496,14 +496,14 @@
         });
     }
 
-    // Filter by division
+    // Filter by division — match sheets by division regex
     const divData = useMemo(()=>{
       if(division.key==="ALL") return dataWithStatus;
       const div = DIVISIONS.find(d=>d.key===division.key);
       if(!div||!div.match) return dataWithStatus;
-      // Filter by sheet name matching division
       const matchingGids = sheets.filter(s=>div.match.test(s.name)).map(s=>s.id);
-      if(!matchingGids.length) return dataWithStatus;
+      // If no matching sheets yet (still loading), show nothing rather than all data
+      if(!matchingGids.length) return [];
       return dataWithStatus.filter(d=>matchingGids.includes(d.gid));
     },[dataWithStatus,division,sheets]);
 
@@ -636,7 +636,7 @@
           setFrom(toISO(new Date(latest.getFullYear(),latest.getMonth(),1)));
           setTo(toISO(new Date(latest.getFullYear(),latest.getMonth()+1,0)));
         }
-        setAllData(merged);setLF(new Date());setLoading(false);
+        setAllData(merged); setLF(new Date()); setLoading(false);
       }catch(e){setErr(e.message);setLoading(false);}
     },[]);
 
@@ -648,17 +648,15 @@
         clearTimeout(hardTimeout);delete window[cb];
         if(Array.isArray(d)&&d.length){
           // Filter: only sheets from Dec 2025 onwards
-          const validSheets=d.filter(s=>{
+          // Load ALL sheets — filter by date range happens in UI
+          // Only skip sheets that have no valid month/year in name (e.g. helper sheets)
+          const sh=d.filter(s=>{
             const p=parseSheetName(s.name);
-            if(!p.valid) return false;
-            // Dec 2025 = month 11 year 2025, onwards
-            if(p.year>2025) return true;
-            if(p.year===2025&&p.monthIdx>=11) return true;
-            return false;
+            return p.valid; // must have a recognizable month and year
           });
-          const sh=validSheets.length?validSheets:d;
-          setSheets(sh.map(s=>({name:s.name,id:String(s.id)})));
-          loadData(sh.map(s=>String(s.id)));
+          const toLoad=sh.length?sh:d;
+          setSheets(toLoad.map(s=>({name:s.name,id:String(s.id)})));
+          loadData(toLoad.map(s=>String(s.id)));
         }else{loadData(["0"]);}
       };
       const s=document.createElement("script");
@@ -781,7 +779,7 @@
         {/* KPI */}
         <div className="fu" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:24}}>
           {[
-            {l:"COMPLAINTS",v:filtered.length,n:filter==="Semua"?"Seluruh divisi":filter,dot:"#2E6DB4"},
+            {l:"COMPLAINTS",v:filtered.length,n:filter==="Semua"?division.label:filter,dot:"#2E6DB4"},
             {l:"GOOGLE REVIEWS",v:gReviews.length,n:`${oneStars.length} dapat bintang 1`,dot:"#B8332A"},
             {l:"BRANCHES",v:branchSet.size,n:"lokasi terdampak",dot:"#2D8C5A"},
             {l:"TOP ISSUE",v:subCts[0]?.[0]||"—",n:`${subCts[0]?.[1]||0} laporan`,dot:"#A86428",sm:true},
