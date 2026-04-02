@@ -358,6 +358,7 @@
       if(v.includes("inti permasalahan")||v.includes("summary")) ci.summary=i;
       if(v==="status"||v.includes("status pelacakan")) ci.status=i;
       if(v.includes("feedback")) ci.feedback=i;
+      if(v.includes("nama customer")||v.includes("nama member")||v.includes("customer")) ci.customer=i;
     });
     const out=[];
     rows.forEach((r,i)=>{
@@ -371,6 +372,7 @@
       out.push({id:`${gidStr}_${i}`,realRow:i+hoff+1,gid:gidStr,dateStr:ds,dateParsed:parseDate(ds),
         branch:normalizeBranch((r[ci.branch]||"").trim()),cat:rawCat,source:(r[ci.source]||"").trim(),
         rating:isNaN(rat)?null:rat,intiPermasalahan:sum.length>2?sum:com,
+        customer:(ci.customer!=null?(r[ci.customer]||"").trim():""),
         status:rawStat,originalStatus:rawStat,sub:classifySub(rawCat,com+" "+sum)});
     });
     return out;
@@ -695,7 +697,7 @@
     },[loadData]);
 
     // Exports
-    const expDetail=()=>exportXLSX(filtered.map(p=>({Date:p.dateStr,Branch:p.branch,Category:p.cat,"Sub-Issue":p.sub,Status:p.status,Rating:p.rating||"",Source:p.source,"Inti Permasalahan":p.intiPermasalahan})),`FTL_Detail_${new Date().toISOString().split('T')[0]}.xlsx`,"Detail Logs");
+    const expDetail=()=>exportXLSX(filtered.map(p=>({Date:p.dateStr,Branch:p.branch,"Nama Customer":p.customer||"",Category:p.cat,"Sub-Issue":p.sub,Status:p.status,Rating:p.rating||"",Source:p.source,"Inti Permasalahan":p.intiPermasalahan})),`FTL_Detail_${new Date().toISOString().split('T')[0]}.xlsx`,"Detail Logs");
     const expAction=()=>{
       const wb=XLSX.utils.book_new();
       const s1=XLSX.utils.json_to_sheet(plans.map((p,i)=>({["#"]:i+1,"Sub-Issue":p.sub,Volume:p.count,Impact:p.imp,"Strategic Action":p.action,Detail:p.detail,Owner:p.owner,Timeline:tlMap[p.tl]?.label||""})));
@@ -905,7 +907,7 @@
                 <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
                   <thead style={{position:"sticky",top:0,background:"rgba(250,249,246,0.95)",backdropFilter:"blur(20px)",zIndex:10}}>
                     <tr style={{borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
-                      {["Date","Branch","Issue Summary","Rating","Status"].map(h=>(
+                      {["Date","Branch","Member","Issue Summary","Rating","Status"].map(h=>(
                         <th key={h} style={{padding:"10px 18px",textAlign:"left",fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>{h}</th>
                       ))}
                     </tr>
@@ -918,6 +920,7 @@
                           <div style={{fontWeight:700,color:"rgba(0,0,0,0.80)"}}>{c.branch}</div>
                           <div style={{fontSize:10,color:"rgba(0,0,0,0.30)",textTransform:"uppercase",letterSpacing:"0.05em",marginTop:2}}>{c.source}</div>
                         </td>
+                        <td style={{padding:"11px 18px",fontWeight:600,color:"rgba(0,0,0,0.70)"}}>{c.customer||"—"}</td>
                         <td style={{padding:"11px 18px",color:"rgba(0,0,0,0.55)",fontWeight:500,maxWidth:340,lineHeight:1.5}}>"{c.intiPermasalahan}"</td>
                         <td style={{padding:"11px 18px",fontWeight:700,color:c.rating?"#A86428":"rgba(0,0,0,0.25)",textAlign:"center"}}>{c.rating?`★ ${c.rating}`:"—"}</td>
                         <td style={{padding:"11px 18px"}}><StatusSelect value={c.status} rowId={c.id} onUpdate={updateStatus} disabled={false}/></td>
@@ -982,9 +985,10 @@
                             </div>
                             <div style={{display:"flex",flexDirection:"column",gap:8}}>
                               {dispFilt.filter(f=>f.sub===p.sub).slice(0,expRL).map((d,idx)=>(
-                                <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"160px 90px 100px 140px 1fr",alignItems:"center",gap:12}}>
+                                <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"140px 80px 130px 100px 140px 1fr",alignItems:"center",gap:12}}>
                                   <span style={{fontWeight:700,color:"rgba(0,0,0,0.80)",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.branch}</span>
                                   <span style={{fontSize:11,color:"rgba(0,0,0,0.38)",whiteSpace:"nowrap"}}>{d.dateStr||"N/A"}</span>
+                                  <span style={{fontSize:12,fontWeight:600,color:"rgba(0,0,0,0.70)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.customer||"—"}</span>
                                   <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",color:"rgba(0,0,0,0.38)",background:"rgba(0,0,0,0.06)",padding:"2px 8px",borderRadius:20,textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.source||"—"}</span>
                                   <StatusSelect value={d.status} rowId={d.id} onUpdate={updateStatus} disabled={false}/>
                                   <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>"{d.intiPermasalahan}"</span>
@@ -1041,7 +1045,7 @@
                   </select>
                   <button onClick={()=>{const rows=bInfo.issues.map((d,idx)=>({"#":idx+1,Branch:d.branch,"Sub-Issue":d.sub,Date:d.dateStr,Status:d.status,Rating:d.rating||"",Source:d.source,Summary:d.intiPermasalahan}));exportXLSX(rows,`FTL_${bInfo.branch}_${new Date().toISOString().split('T')[0]}.xlsx`,bInfo.branch.slice(0,31));}}
                     className="pill-btn" style={{fontSize:10,color:"#2D8C5A",fontWeight:700,gap:4}}>{SVG_DL} Excel</button>
-                  <button onClick={()=>setExpBr(null)} style={{width:26,height:26,borderRadius:"50%",background:"rgba(0,0,0,0.07)",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.50)"}}>✕</button>
+                  <button onClick={()=>{ const sy=window.scrollY; setExpBr(null); setTimeout(()=>window.scrollTo({top:sy}),10); }} style={{width:26,height:26,borderRadius:"50%",background:"rgba(0,0,0,0.07)",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.50)"}}>✕</button>
                 </div>
               </div>
               <div style={{padding:"14px 20px"}}>
@@ -1050,10 +1054,11 @@
                   {bInfo.issues.slice(0,brLim).map((d,idx)=>{
                     const imp=plans0.find(p=>p.sub===d.sub)?.imp||'LOW';
                     return(
-                      <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"80px 160px 90px 140px 1fr",alignItems:"center",gap:12}}>
+                      <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"80px 150px 80px 130px 140px 1fr",alignItems:"center",gap:12}}>
                         <ImpBadge imp={imp}/>
                         <span style={{fontWeight:700,color:"rgba(0,0,0,0.80)",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.sub}</span>
                         <span style={{fontSize:11,color:"rgba(0,0,0,0.38)",whiteSpace:"nowrap"}}>{d.dateStr||"N/A"}</span>
+                        <span style={{fontSize:12,fontWeight:600,color:"rgba(0,0,0,0.70)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.customer||"—"}</span>
                         <StatusSelect value={d.status} rowId={d.id} onUpdate={updateStatus} disabled={false}/>
                         <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>"{d.intiPermasalahan}"</span>
                       </div>
