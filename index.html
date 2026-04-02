@@ -664,36 +664,23 @@
     useEffect(()=>{
       if(WEB_APP_URL.includes("MASUKKAN")){loadData(["0"]);return;}
 
-      // Use fetch instead of JSONP — works from GitHub Pages
       fetch(WEB_APP_URL)
         .then(r=>r.json())
         .then(d=>{
-          if(Array.isArray(d)&&d.length){
-            const sh=d.filter(s=>parseSheetName(s.name).valid);
-            const toLoad=sh.length?sh:d;
-            setSheets(toLoad.map(s=>({name:s.name,id:String(s.id)})));
-            loadData(toLoad.map(s=>String(s.id)));
-          }else{loadData(["0"]);}
+          if(!Array.isArray(d)||!d.length){loadData(["0"]);return;}
+          const sh=d.filter(s=>parseSheetName(s.name).valid);
+          const toLoad=sh.length?sh:d;
+          const sheetObjs=toLoad.map(s=>({name:s.name,id:String(s.id)}));
+          // Set sheets first, then load — use callback to ensure sheets state is used
+          setSheets(sheetObjs);
+          // Pass gids directly to loadData — don't rely on sheets state
+          loadData(sheetObjs.map(s=>s.id));
         })
-        .catch(()=>{
-          // fetch failed (CORS) — try JSONP fallback
-          const hardTimeout=setTimeout(()=>loadData(["0"]),10000);
-          const cb="cb_"+Date.now();
-          window[cb]=d=>{
-            clearTimeout(hardTimeout);delete window[cb];
-            if(Array.isArray(d)&&d.length){
-              const sh=d.filter(s=>parseSheetName(s.name).valid);
-              const toLoad=sh.length?sh:d;
-              setSheets(toLoad.map(s=>({name:s.name,id:String(s.id)})));
-              loadData(toLoad.map(s=>String(s.id)));
-            }else{loadData(["0"]);}
-          };
-          const s=document.createElement("script");
-          s.src=`${WEB_APP_URL}?callback=${cb}`;
-          s.onerror=()=>{clearTimeout(hardTimeout);delete window[cb];loadData(["0"]);};
-          document.head.appendChild(s);
+        .catch(e=>{
+          console.warn("[FTL] fetch failed:",e.message,"— fallback gid=0");
+          loadData(["0"]);
         });
-    },[]);
+    },[loadData]);
 
     // Exports
     const expDetail=()=>exportXLSX(filtered.map(p=>({Date:p.dateStr,Branch:p.branch,Category:p.cat,"Sub-Issue":p.sub,Status:p.status,Rating:p.rating||"",Source:p.source,"Inti Permasalahan":p.intiPermasalahan})),`FTL_Detail_${new Date().toISOString().split('T')[0]}.xlsx`,"Detail Logs");
