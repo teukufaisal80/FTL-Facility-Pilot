@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FTL GYM — Complaint Intelligence</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- SF Pro via Apple CDN fallback chain -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    /* ─────────────────────────────────────────────
+       iOS 26 Liquid Glass — Design System
+       ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* SF Pro Display is Apple's system font — available natively on Apple devices.
+       On non-Apple devices we fall back to Inter which is the closest match
+       in terms of geometry, optical sizing, and letter-spacing. */
+    @font-face {
+      font-family: 'SF Pro Display';
+      src: local('-apple-system'), local('SF Pro Display'), local('SFProDisplay-Regular');
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: 'SF Pro Display';
+      src: local('SF Pro Display'), local('SFProDisplay-Medium');
+      font-weight: 500 600;
+    }
+    @font-face {
+      font-family: 'SF Pro Display';
+      src: local('SF Pro Display'), local('SFProDisplay-Bold');
+      font-weight: 700;
+    }
+    @font-face {
+      font-family: 'SF Pro Display';
+      src: local('SF Pro Display'), local('SFProDisplay-Heavy');
+      font-weight: 800 900;
+    }
+
+    body {
+      /* SF Pro Display → SF Pro Text → system-ui (Apple) → Inter (fallback on Windows/Android) */
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Inter', sans-serif;
+      /* Apple-style letter-spacing and antialiasing */
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      letter-spacing: -0.01em;
+      min-height: 100vh;
+      /* Background: #f5f5f7 + gradient mesh blob tipis + frost 86% */
+      background-color: #FAF9F6;
+      background-image:
+        radial-gradient(ellipse 72% 55% at 15% -5%,  rgba(0,122,255,0.13)  0%, transparent 60%),
+        radial-gradient(ellipse 60% 45% at 88% 12%,  rgba(52,199,89,0.10)  0%, transparent 55%),
+        radial-gradient(ellipse 55% 40% at 75% 88%,  rgba(175,82,222,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse 45% 35% at 10% 80%,  rgba(255,204,0,0.07)  0%, transparent 50%);
+      /* frost layer 86% — handled via card opacity */
+    }
+
+    /* ── Glass Card — core primitive ── */
+    .glass {
+      /* Card background opacity: rgba(255,255,255, 0.08–0.14) → we use 0.12 base */
+      background: rgba(255,255,255,0.12);
+      /* Backdrop: blur(52–72px) saturate(210–240%) brightness(1.04–1.08) */
+      backdrop-filter: blur(62px) saturate(220%) brightness(1.06);
+      -webkit-backdrop-filter: blur(62px) saturate(220%) brightness(1.06);
+      /* Border top: 1px solid rgba(255,255,255,0.62) — bright */
+      border-top: 1px solid rgba(255,255,255,0.62);
+      /* Border side/bottom: makin tipis ke bawah (0.22 → 0.14) */
+      border-right: 1px solid rgba(255,255,255,0.22);
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      border-left: 1px solid rgba(255,255,255,0.22);
+      border-radius: 22px;
+      /* Specular highlight: linear gradient putih 0–44% dari atas */
+      background-image: linear-gradient(
+        180deg,
+        rgba(255,255,255,0.44) 0%,
+        rgba(255,255,255,0.00) 100%
+      );
+      /* Inner rim: inset box-shadow 0.5px putih */
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.90),
+        0 1px 1px rgba(0,0,0,0.04),
+        0 4px 12px rgba(0,0,0,0.07),
+        0 16px 40px rgba(0,0,0,0.09),
+        0 32px 60px rgba(0,0,0,0.04);
+      transition: transform 0.20s ease, box-shadow 0.20s ease;
+    }
+    .glass:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        inset 0 0.5px 0 rgba(255,255,255,0.90),
+        0 1px 1px rgba(0,0,0,0.04),
+        0 6px 16px rgba(0,0,0,0.09),
+        0 22px 52px rgba(0,0,0,0.11),
+        0 40px 72px rgba(0,0,0,0.05);
+    }
+
+    /* ── Glass card — solid white variant (for inner nested cards) ── */
+    .glass-inner {
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-top: 1px solid rgba(255,255,255,0.80);
+      border-right: 1px solid rgba(255,255,255,0.30);
+      border-bottom: 1px solid rgba(255,255,255,0.20);
+      border-left: 1px solid rgba(255,255,255,0.30);
+      border-radius: 16px;
+      background-image: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.00) 100%);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), 0 2px 6px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.07);
+    }
+
+    /* ── Pill / Badge button ── */
+    .pill-btn {
+      background: rgba(255,255,255,0.18);
+      backdrop-filter: blur(20px) saturate(200%);
+      -webkit-backdrop-filter: blur(20px) saturate(200%);
+      border-top: 1px solid rgba(255,255,255,0.60);
+      border-right: 1px solid rgba(255,255,255,0.20);
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      border-left: 1px solid rgba(255,255,255,0.20);
+      border-radius: 9999px;
+      background-image: linear-gradient(180deg, rgba(255,255,255,0.38) 0%, rgba(255,255,255,0.00) 100%);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), 0 2px 6px rgba(0,0,0,0.06), 0 8px 20px rgba(0,0,0,0.08);
+      cursor: pointer;
+      transition: all 0.14s ease;
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      color: rgba(0,0,0,0.75);
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 16px;
+    }
+    .pill-btn:hover {
+      background: rgba(255,255,255,0.28);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.90), 0 4px 12px rgba(0,0,0,0.10);
+      transform: translateY(-0.5px);
+    }
+    .pill-btn:active { transform: scale(0.97); }
+    .pill-btn.active-black  { background: rgba(28,28,30,0.88);  color: #fff; border-color: rgba(28,28,30,0.5);  box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.12), 0 3px 10px rgba(0,0,0,0.25); }
+    .pill-btn.active-green  { background: rgba(45,140,90,0.88);  color: #fff; border-color: rgba(45,140,90,0.5);  box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.25), 0 3px 10px rgba(45,140,90,0.25); }
+    .pill-btn.active-orange { background: rgba(175,100,40,0.88); color: #fff; border-color: rgba(175,100,40,0.5); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.25), 0 3px 10px rgba(175,100,40,0.25); }
+    .pill-btn.active-red    { background: rgba(185,50,42,0.88);   color: #fff; border-color: rgba(185,50,42,0.5);   box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.25), 0 3px 10px rgba(185,50,42,0.25); }
+
+    /* Rounded rect button (tabs) */
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-radius: 12px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(0,0,0,0.45);
+      cursor: pointer;
+      transition: all 0.14s ease;
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Inter', sans-serif;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.30); color: rgba(0,0,0,0.70); }
+    .tab-btn.active {
+      background: rgba(255,255,255,0.22);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255,255,255,0.60);
+      border-right: 1px solid rgba(255,255,255,0.20);
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      border-left: 1px solid rgba(255,255,255,0.20);
+      background-image: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, transparent 100%);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.85), 0 2px 6px rgba(0,0,0,0.08);
+      color: rgba(0,0,0,0.88);
+      font-weight: 700;
+    }
+
+    /* ── Progress bar ── */
+    .pb { height: 10px; border-radius: 99px; background: rgba(0,0,0,0.07); overflow: hidden; flex: 1; }
+    .pf { height: 100%; border-radius: 99px; transition: width 0.85s cubic-bezier(.4,0,.2,1); }
+
+    /* ── KPI card — stronger glass ── */
+    .kpi-card {
+      background: rgba(255,255,255,0.14);
+      backdrop-filter: blur(72px) saturate(240%) brightness(1.08);
+      -webkit-backdrop-filter: blur(72px) saturate(240%) brightness(1.08);
+      border-top: 1px solid rgba(255,255,255,0.62);
+      border-right: 1px solid rgba(255,255,255,0.22);
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      border-left: 1px solid rgba(255,255,255,0.22);
+      border-radius: 20px;
+      background-image: linear-gradient(180deg, rgba(255,255,255,0.44) 0%, rgba(255,255,255,0.00) 55%);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.95), 0 10px 30px rgba(0,0,0,0.09), 0 2px 8px rgba(0,0,0,0.05);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      padding: 22px 24px;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px) scale(1.012);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.95), 0 18px 48px rgba(0,0,0,0.12), 0 4px 14px rgba(0,0,0,0.07);
+    }
+
+    /* ── Matrix quadrant ── */
+    .quad {
+      border-radius: 18px;
+      padding: 16px 18px;
+      backdrop-filter: blur(30px) saturate(200%);
+      -webkit-backdrop-filter: blur(30px) saturate(200%);
+      border-top: 1px solid rgba(255,255,255,0.55);
+      border-right: 1px solid rgba(255,255,255,0.20);
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      border-left: 1px solid rgba(255,255,255,0.20);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.80), 0 4px 16px rgba(0,0,0,0.06);
+    }
+
+    /* ── Status select ── */
+    .status-sel {
+      font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      border-radius: 9999px; padding: 4px 10px; border: 1px solid; outline: none; cursor: pointer;
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Inter', sans-serif;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.60), 0 1px 4px rgba(0,0,0,0.07);
+      transition: all 0.14s; min-width: 128px; appearance: none; -webkit-appearance: none;
+    }
+
+    /* ── Date input ── */
+    input[type="date"] {
+      background: rgba(255,255,255,0.22);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255,255,255,0.62);
+      border-right: 1px solid rgba(255,255,255,0.22);
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      border-left: 1px solid rgba(255,255,255,0.22);
+      border-radius: 9999px; padding: 5px 14px;
+      font-size: 12px; font-weight: 600; color: rgba(0,0,0,0.80);
+      outline: none; cursor: pointer;
+      box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.80), 0 1px 4px rgba(0,0,0,0.06);
+      background-image: linear-gradient(180deg, rgba(255,255,255,0.30) 0%, transparent 100%);
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Inter', sans-serif;
+    }
+    input[type="date"]:focus { outline: none; box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.80), 0 0 0 3px rgba(0,122,255,0.20); }
+
+    /* ── Divider ── */
+    .divider { border: none; border-top: 1px solid rgba(255,255,255,0.25); margin: 0; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 99px; }
+
+    /* ── Row hover ── */
+    tr.trow:hover td { background: rgba(255,255,255,0.18); }
+
+    /* ── Select ── */
+    select { font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Inter', sans-serif; }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.75s linear infinite; }
+
+    /* ── Fade up ── */
+    @keyframes fu { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    .fu { animation: fu 0.35s ease both; }
+
+    /* ── Label text colors adjusted for glass bg ── */
+    .label-muted { color: rgba(0,0,0,0.42); }
+    .label-dark   { color: rgba(0,0,0,0.82); }
+    .label-mid    { color: rgba(0,0,0,0.55); }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+  const { useState, useEffect, useCallback, useMemo } = React;
+
+  const SHEET_ID = "1O3EHbrKR5RL38cIkIy1ciGoGu9kzelFBJZ3N-CWXqng";
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw2knxribNEp3ThNJalwrmuQ09Tk1RsBVqIPjSjZq7HdlGtVP8WHkZl37Rbz3fYpx2W/exec";
+
+  /* ── classifiers (unchanged) ── */
+  function classifySub(issue, t) {
+    const s = t.toLowerCase(), cat = issue.toLowerCase();
+    if (cat.includes("fasilitas")||cat.includes("alat")||cat.includes("mesin")) {
+      if (/bocor|retak|atap|gedung|toilet|wc|bau/.test(s)) return "Fasilitas Lainnya";
+      if (/rusak|stuck|seret|lepas|dol|kendor|macet/.test(s)) return "Alat Rusak";
+      if (/tua|lama|second|upgrade|ganti|label|bahaya|miring/.test(s)) return "Equipment Issue";
+      return "Fasilitas Lainnya";
+    }
+    if (cat.includes("parkir")) return /pung|liar|paksa|bayar|uang|tarif|mahal/.test(s) ? "Pungli / Biaya" : "Akses Parkir";
+    if (cat.includes("staff")||cat.includes("karyawan")||cat.includes("ob")) return "Staff & Karyawan";
+    if (cat.includes("bersih")||cat.includes("kotor")) return "Fasilitas Lainnya";
+    if (cat.includes("member")) return "Membership";
+    if (cat.includes("kelas")||cat.includes("gx")) return "Kelas & Jadwal";
+    if (/air |shower|mandi|dispenser|karofi|mampet|pipa|onsen|water|bidet/.test(s)) return "Water & Plumbing";
+    if (/steam|sauna/.test(s)) return "Steam & Sauna";
+    if (/ac |panas|dingin|suhu|pengap/.test(s)) return "AC & Suhu";
+    if (/tissue|sabun|handuk|hairdryer|catokan|loker/.test(s)) return "Amenities";
+    if (/wifi|internet|paku|keamanan|kunci/.test(s)) return "Fasilitas Lainnya";
+    if (/req|request|tolong|pengen|adain/.test(s)||cat.includes("req")) return "Request Lainnya";
+    return "Sub-Issue Lainnya";
+  }
+  function getOwner(cat) {
+    const s = cat.toLowerCase();
+    if (s.includes("fasilitas")||s.includes("parkir")||s.includes("alat")||s.includes("bersih")) return "FCM";
+    if (s.includes("staff")||s.includes("member")) return "OM/FM & BD";
+    if (s.includes("kelas")||s.includes("gx")) return "GX Team";
+    return "Operations";
+  }
+
+  const recoDB = {
+    "Water & Plumbing":  { action:"Audit Suplai & Tekanan Air",     detail:"Periksa kinerja pemanas air, tekanan pipa, dan higienitas dispenser air secara menyeluruh.", tl:"immediate", imp:"HIGH" },
+    "Fasilitas Lainnya": { action:"Tinjauan Perawatan Fasilitas",    detail:"Eskalasi perbaikan operasional gedung (WiFi, toilet, area umum) ke vendor sesuai durasi SLA.", tl:"medium", imp:"LOW" },
+    "Request Lainnya":   { action:"Konsolidasi Keluhan Member",      detail:"Lacak rentetan pengajuan fitur maupun alat baru untuk perencanaan anggaran CapEx mendatang.", tl:"long", imp:"LOW" },
+    "Steam & Sauna":     { action:"Preventif Komponen Pemanas",      detail:"Ganti elemen pemanas yang sudah termakan usia secara proaktif untuk meminimalisir kerusakan tiba-tiba.", tl:"immediate", imp:"MEDIUM" },
+    "AC & Suhu":         { action:"Optimalisasi Sistem HVAC",        detail:"Bersihkan filter secara rutin dan kalibrasi sistem pendingin demi suhu ruangan yang stabil.", tl:"short", imp:"HIGH" },
+    "Pungli / Biaya":    { action:"Kebijakan Anti-Pungli",           detail:"Pasang peringatan dilarang pungli / parkir bebas retribusi dan tingkatkan pengawasan di area parkir luar.", tl:"immediate", imp:"HIGH" },
+    "Amenities":         { action:"Checklist Kelengkapan Rutin",     detail:"Pastikan staf shift mengecek dengan cermat ketersediaan tisu, sabun muka, dan handuk setiap jamnya.", tl:"immediate", imp:"MEDIUM" },
+    "Akses Parkir":      { action:"Manajemen Kapasitas Parkir",      detail:"Berikan panduan kantong parkir motor/mobil alternatif terdekat kepada member di saat jam-jam puncak.", tl:"short", imp:"MEDIUM" },
+    "Alat Rusak":        { action:"Percepatan SLA Perbaikan",        detail:"Kunci SLA maksimal 24-48 jam terhadap kerusakan kabel putus, bantalan sobek, dan baut tuas kendur.", tl:"immediate", imp:"HIGH" },
+    "Equipment Issue":   { action:"Audit Kelayakan Fleets",          detail:"Berikan barikade/segregated area pada pelat karatan yang membahayakan beban angkat & inisiasi penyegaran unit.", tl:"medium", imp:"MEDIUM" },
+    "Staff & Karyawan":  { action:"Pelatihan Ulang Hospitality",     detail:"Terbitkan standar pelayanan tegas, lakukan teguran disipliner, dan laksanakan retraining etika ke resepsionis.", tl:"immediate", imp:"HIGH" },
+    "Membership":        { action:"Edukasi Kebijakan Tarik",         detail:"Sebarkan flyer pemahaman penagihan tagihan telat bayar, komitmen kontrak, dan tata tertib pembebasan masa cuti.", tl:"short", imp:"LOW" },
+    "Kelas & Jadwal":    { action:"Evaluasi Jadwal & Kuota",         detail:"Pantau penumpukan anggota kelas senam, tinjau absensi kelas sore, lalu perbesar kuota bagi jam terlaris.", tl:"medium", imp:"LOW" },
+    "Sub-Issue Lainnya": { action:"Investigasi Lapangan Lanjut",     detail:"Turun langsung ke titik area persinggungan untuk mendeteksi kesenjangan operasional lokal yang gagal tercatat.", tl:"short", imp:"LOW" }
+  };
+
+  const tlMap = { immediate:{label:"0–1 bln",clr:"#B8332A"}, short:{label:"1–3 bln",clr:"#A86428"}, medium:{label:"3–6 bln",clr:"#2E6DB4"}, long:{label:"6+ bln",clr:"#7A52A8"} };
+  const impStyle = {
+    HIGH:   { bg:"rgba(185,50,42,0.10)",   txt:"#B8332A", border:"rgba(185,50,42,0.20)" },
+    MEDIUM: { bg:"rgba(175,100,40,0.10)",  txt:"#A86428", border:"rgba(175,100,40,0.20)" },
+    LOW:    { bg:"rgba(45,140,90,0.10)",   txt:"#2D8C5A", border:"rgba(45,140,90,0.20)" }
+  };
+  const progColors   = ["#007AFF","#34C759","#FF9500","#AF52DE","#FF3B30","#5AC8FA","#FF2D55","#FFCC00","#FF6B35","#32D74B"];
+  const sourceColors = { "Quick Response":"#007AFF","Google Review":"#FF3B30","WhatsApp":"#34C759","Instagram":"#AF52DE","In-Apps":"#FF9500","Panggilan":"#8E8E93" };
+
+  function countMap(arr, key) {
+    const m = {};
+    arr.forEach(x => { const k = typeof key==="function"?key(x):x[key]; m[k]=(m[k]||0)+1; });
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  }
+  function parseDate(s) {
+    if (!s) return null;
+    // Format: Date(2026,1,1) from Google Sheets GViz — month is 0-indexed
+    const gviz = s.match(/Date\((\d{4}),(\d+),(\d+)\)/);
+    if (gviz) return new Date(+gviz[1], +gviz[2], +gviz[3]);
+    // Format: "1 Feb 2026" or "Feb 1, 2026" (locale string from Sheets)
+    const monthNames={jan:0,feb:1,mar:2,apr:3,may:4,mei:4,jun:5,jul:6,aug:7,agu:7,sep:8,oct:9,okt:9,nov:10,dec:11,des:11};
+    const mStr = s.match(/(\d{1,2})\s+([a-z]{3})\s+(\d{4})/i) || s.match(/([a-z]{3})\s+(\d{1,2}),?\s+(\d{4})/i);
+    if (mStr) {
+      const isNumFirst = /^\d/.test(mStr[0]);
+      const day   = isNumFirst ? +mStr[1] : +mStr[2];
+      const mon   = monthNames[(isNumFirst ? mStr[2] : mStr[1]).toLowerCase()];
+      const year  = +mStr[3];
+      if (mon !== undefined) return new Date(year, mon, day);
+    }
+    // ISO or common formats: YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY
+    let d = new Date(s); if (!isNaN(d) && d.getFullYear()>2000) return d;
+    const p = s.split(/[\/\-\.]/);
+    if (p.length===3) {
+      if (p[2].length===4) { d=new Date(`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`); if (!isNaN(d)&&d.getFullYear()>2000) return d; }
+      if (p[0].length===4) { d=new Date(`${p[0]}-${p[1].padStart(2,'0')}-${p[2].padStart(2,'0')}`); if (!isNaN(d)&&d.getFullYear()>2000) return d; }
+    }
+    // Log unparseable dates for debugging
+    if (s) console.warn("[FTL] Unparseable date:", JSON.stringify(s));
+    return null;
+  }
+  function toISO(d) { if(!d) return ""; const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dy=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${dy}`; }
+
+  function exportXLSX(rows, fname, sheet="Data") {
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    ws['!cols'] = Object.keys(rows[0]||{}).map(k=>({ wch: Math.max(k.length+2, 18) }));
+    XLSX.utils.book_append_sheet(wb, ws, sheet.slice(0,31));
+    XLSX.writeFile(wb, fname);
+  }
+
+  /* ── Status Select — glass style ── */
+  function StatusSelect({ value, rowId, onUpdate, disabled }) {
+    const cfg = {
+      "Untouched":            { bg:"rgba(130,130,135,0.10)", txt:"rgba(0,0,0,0.42)", bdr:"rgba(130,130,135,0.20)" },
+      "On going":             { bg:"rgba(175,100,40,0.10)",  txt:"#A86428",          bdr:"rgba(175,100,40,0.22)" },
+      "Solved":               { bg:"rgba(45,140,90,0.10)",   txt:"#2D8C5A",          bdr:"rgba(45,140,90,0.22)" },
+      "Not Problem to solve": { bg:"rgba(185,50,42,0.10)",   txt:"#B8332A",          bdr:"rgba(185,50,42,0.22)" },
+    };
+    const c = cfg[value]||cfg["Untouched"];
+    return (
+      <select value={value} onChange={e=>onUpdate(rowId,e.target.value)} disabled={disabled}
+        className="status-sel" style={{ background:c.bg, color:c.txt, borderColor:c.bdr, opacity:disabled?.5:1 }}>
+        <option value="Untouched">⚪ Untouched</option>
+        <option value="On going">🟡 On going</option>
+        <option value="Solved">🟢 Solved</option>
+        <option value="Not Problem to solve">🔴 Not Problem</option>
+      </select>
+    );
+  }
+
+  /* ── Imp badge ── */
+  function ImpBadge({ imp }) {
+    const s = impStyle[imp]||impStyle.LOW;
+    return <span style={{ background:s.bg, color:s.txt, border:`1px solid ${s.border}`, borderRadius:9999, padding:"3px 10px", fontSize:10, fontWeight:800, letterSpacing:"0.05em", textTransform:"uppercase", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)" }}>{imp}</span>;
+  }
+
+  /* ── App ── */
+  function App() {
+    const [allData,  setAllData]  = useState([]);
+    const [filter,   setFilter]   = useState("Semua");
+    const [stFilt,   setStFilt]   = useState("Semua Status");
+    const [updating, setUpd]      = useState({});
+    const [loading,  setLoading]  = useState(true);
+    const [err,      setErr]      = useState(null);
+    const [lastFetch,setLF]       = useState(null);
+    const [drillSub, setDrill]    = useState(null);
+    const [expRow,   setExpRow]   = useState(null);
+    const [expRL,    setExpRL]    = useState(10);
+    const [sheets,   setSheets]   = useState([]);
+    const [expBr,    setExpBr]    = useState(null);
+    const [brLim,    setBrLim]    = useState(10);
+    const [sortCfg,  setSort]     = useState(null);
+    const [dateFrom, setFrom]     = useState("");
+    const [dateTo,   setTo]       = useState("");
+
+    // Clean up stale localStorage from previous versions
+    useEffect(()=>{
+      Object.keys(localStorage).filter(k=>k.startsWith("ftl_")).forEach(k=>localStorage.removeItem(k));
+    },[]);
+
+    // Helper: parse one sheet's gviz response into row objects
+    function parseSheetResp(resp, gidStr) {
+      if (!resp?.table) { console.log("[FTL] No table in response for gid:", gidStr); return []; }
+      let headers = resp.table.cols.map(c=>(c.label||"").trim());
+      let rows    = resp.table.rows.map(r=>r.c.map(cell=>(!cell||cell.v==null?"":String(cell.f||cell.v))));
+      let hoff = 1;
+      if (!headers.some(h=>/tanggal|cabang|issue|sumber/i.test(h))&&rows.length) {
+        if (rows[0].some(v=>/tanggal|cabang|issue|sumber/i.test(v))) { headers=rows[0]; rows=rows.slice(1); hoff=2; }
+      }
+      const h=headers.map(x=>x.toLowerCase().trim()), ci={};
+      h.forEach((v,i)=>{
+        if(v.includes("tanggal")||v.includes("date")) ci.date=i;
+        if(v.includes("cabang")||v.includes("branch")) ci.branch=i;
+        if(v.includes("rating")) ci.rating=i;
+        if(v.includes("sumber")||v.includes("source")) ci.source=i;
+        if(v.includes("komentar")||v.includes("comment")) ci.comment=i;
+        if(v==="issue"||v.includes("kategori")||v.includes("category")) ci.issue=i;
+        if(v.includes("inti permasalahan")||v.includes("summary")) ci.summary=i;
+        if(v==="status"||v.includes("status pelacakan")) ci.status=i;
+      });
+      const out=[];
+      rows.forEach((r,i)=>{
+        const rawCat=(r[ci.issue]||"").trim();
+        if(!rawCat){
+          console.warn(`[FTL] gid=${gidStr} row ${i+hoff+1} SKIPPED — no issue/category. Row data:`, r);
+          return;
+        }
+        const com=(r[ci.comment]||"").trim(), sum=ci.summary!=null?(r[ci.summary]||"").trim():"";
+        const rat=parseInt(r[ci.rating]), ds=(r[ci.date]||"").trim();
+        const rawStat=((ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched");
+        out.push({ id:`${gidStr}_${i}`, realRow:i+hoff+1, gid:gidStr,
+          dateStr:ds, dateParsed:parseDate(ds),
+          branch:(r[ci.branch]||"").trim(), cat:rawCat, source:(r[ci.source]||"").trim(),
+          rating:isNaN(rat)?null:rat, intiPermasalahan:sum.length>2?sum:com,
+          status:rawStat, originalStatus:rawStat, sub:classifySub(rawCat,com+" "+sum) });
+      });
+      console.log(`[FTL] gid=${gidStr}: ${rows.length} raw rows → ${out.length} parsed. hoff=${hoff}. ci=`, ci);
+      const noDate=out.filter(d=>!d.dateParsed);
+      if(noDate.length) console.warn(`[FTL] gid=${gidStr}: ${noDate.length} rows with UNPARSEABLE date:`, noDate.slice(0,3).map(d=>d.dateStr));
+      console.log(`[FTL] gid=${gidStr}: ${rows.length} raw rows → ${out.length} parsed. hoff=${hoff}. ci=`, ci);
+      return out;
+    }
+
+    // Fetch one sheet via GViz JSONP — returns Promise
+    function fetchOneSheet(gidStr) {
+      return new Promise((resolve)=>{
+        const cb="__gs"+Date.now()+"_"+gidStr;
+        const timeout=setTimeout(()=>{ delete window[cb]; resolve([]); },8000);
+        window[cb]=(resp)=>{ clearTimeout(timeout); delete window[cb]; resolve(parseSheetResp(resp,gidStr)); };
+        const s=document.createElement("script");
+        s.src=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:${cb}&gid=${gidStr}`;
+        s.onerror=()=>{ clearTimeout(timeout); delete window[cb]; resolve([]); };
+        document.head.appendChild(s);
+      });
+    }
+
+    const loadData = useCallback(async (gidsList) => {
+      setLoading(true); setErr(null);
+      try {
+        const gids = gidsList && gidsList.length ? gidsList : ["0"];
+        const results = await Promise.all(gids.map(g=>fetchOneSheet(g)));
+        const merged = results.flat();
+        if (!merged.length) throw new Error("Tidak ada data. Pastikan spreadsheet sudah dibagikan ke 'Anyone with the link'.");
+        const vd=merged.map(d=>d.dateParsed).filter(Boolean).sort((a,b)=>b-a);
+        if(vd.length){
+          const latest=vd[0];
+          setFrom(toISO(new Date(latest.getFullYear(),latest.getMonth(),1)));
+          setTo(toISO(new Date(latest.getFullYear(),latest.getMonth()+1,0)));
+        }
+        setAllData(merged); setLF(new Date()); setLoading(false);
+      } catch(e){ setErr(e.message); setLoading(false); }
+    },[]);
+
+    useEffect(()=>{
+      if(WEB_APP_URL.includes("MASUKKAN")){ loadData(["0"]); return; }
+
+      // Fetch sheets list from Apps Script
+      // While waiting, also show a 10s hard timeout so it never hangs forever
+      const hardTimeout = setTimeout(()=>{
+        console.warn("[FTL] Apps Script timeout");
+        loadData(["0"]);
+      }, 15000);
+
+      const cb = "cb_"+Date.now();
+      window[cb] = d => {
+        clearTimeout(hardTimeout);
+        delete window[cb];
+        if(Array.isArray(d) && d.length){
+          const sh = d.map(s=>({name:s.name, id:String(s.id)}));
+          setSheets(sh);
+          loadData(sh.map(s=>s.id));
+        } else {
+          loadData(["0"]);
+        }
+      };
+      const s = document.createElement("script");
+      s.src = `${WEB_APP_URL}${WEB_APP_URL.includes("?")?"&":"?"}callback=${cb}`;
+      s.onerror = ()=>{ clearTimeout(hardTimeout); delete window[cb]; loadData(["0"]); };
+      document.head.appendChild(s);
+    },[]);
+
+    const updateStatus = async (rowId, ns) => {
+      // Find which sheet (gid) this row belongs to
+      const rowData = allData.find(d=>d.realRow===rowId);
+      const rowGid = rowData?.gid || "0";
+      setAllData(prev=>prev.map(d=>d.realRow===rowId?{...d,status:ns}:d));
+      setUpd(prev=>({...prev,[rowId]:true}));
+      try { await fetch(WEB_APP_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify({row:rowId,status:ns,gid:rowGid})}); } catch(e){}
+      setTimeout(()=>setUpd(prev=>({...prev,[rowId]:false})),800);
+    };
+
+    // Parse ISO date string as LOCAL midnight (not UTC) to avoid timezone shift
+    function localDate(iso) {
+      if(!iso) return null;
+      const [y,m,d]=iso.split("-").map(Number);
+      return new Date(y, m-1, d);
+    }
+    const data = useMemo(()=>{
+      if(!dateFrom&&!dateTo) return allData;
+      const from=localDate(dateFrom);
+      const toD=localDate(dateTo);
+      if(toD) toD.setHours(23,59,59,999); // end of day local time
+      return allData.filter(d=>{
+        if(!d.dateParsed) return true;
+        if(from&&d.dateParsed<from) return false;
+        if(toD&&d.dateParsed>toD) return false;
+        return true;
+      });
+    },[allData,dateFrom,dateTo]);
+    const filtered  = useMemo(()=>data.filter(c=>(filter==="Semua"||c.cat===filter)&&(stFilt==="Semua Status"||c.status===stFilt)),[data,filter,stFilt]);
+    const dispFilt  = useMemo(()=>data.filter(c=>(filter==="Semua"||c.cat===filter)&&(stFilt==="Semua Status"||c.status===stFilt||c.originalStatus===stFilt)),[data,filter,stFilt]);
+    const cats      = useMemo(()=>[...new Set(data.map(c=>c.cat))]          ,[data]);
+    const catCts    = useMemo(()=>{ const m={}; data.filter(c=>stFilt==="Semua Status"||c.status===stFilt).forEach(c=>{m[c.cat]=(m[c.cat]||0)+1;}); return m; },[data,stFilt]);
+    const subCts    = useMemo(()=>countMap(filtered,"sub")                  ,[filtered]);
+    const srcCts    = useMemo(()=>countMap(filtered,"source")               ,[filtered]);
+    const gReviews  = useMemo(()=>filtered.filter(c=>c.source==="Google Review"),[filtered]);
+    const oneStars  = useMemo(()=>filtered.filter(c=>c.rating===1)          ,[filtered]);
+    const branchSet = useMemo(()=>new Set(filtered.map(c=>c.branch))        ,[filtered]);
+    const daysCt    = useMemo(()=>new Set(filtered.map(c=>c.dateStr)).size||1,[filtered]);
+
+    const plans0 = useMemo(()=>subCts.map(([sub,ct])=>{
+      const raw=recoDB[sub]||{action:"Investigasi Ekstra",detail:"Selidiki pola operasional secara lebih intensif.",tl:"short",imp:"MEDIUM"};
+      let imp=raw.imp; if(ct>filtered.length*0.1||ct>=5) imp="HIGH"; else if(ct===1&&filtered.length>5) imp="LOW";
+      const m=filtered.find(c=>c.sub===sub);
+      return { sub,count:ct,action:raw.action,detail:raw.detail,tl:raw.tl,imp,owner:m?getOwner(m.cat):"Operations",iv:{HIGH:3,MEDIUM:2,LOW:1}[imp]||1 };
+    }),[subCts,filtered]);
+
+    const plans = useMemo(()=>{
+      const items=[...plans0];
+      if(sortCfg){ items.sort((a,b)=>{ let vA=a[sortCfg.k],vB=b[sortCfg.k]; if(typeof vA==="string"){vA=vA.toLowerCase();vB=vB.toLowerCase();} if(vA<vB) return sortCfg.d==="asc"?-1:1; if(vA>vB) return sortCfg.d==="asc"?1:-1; return b.count-a.count; }); }
+      else { items.sort((a,b)=>b.iv-a.iv||b.count-a.count); }
+      return items;
+    },[plans0,sortCfg]);
+
+    const ts = k => setSort(s=>({k,d:s?.k===k&&s?.d==="desc"?"asc":"desc"}));
+    const Si = ({col}) => { if(!sortCfg||sortCfg.k!==col) return <span style={{opacity:.2,marginLeft:2}}>↕</span>; return <span style={{marginLeft:2}}>{sortCfg.d==="asc"?"↑":"↓"}</span>; };
+
+    const matrix = useMemo(()=>{
+      const m={hE:[],hH:[],lE:[],lH:[]};
+      plans.forEach(p=>{ const hi=p.iv>=2.5||(p.iv===2&&p.count>=2),hd=p.count>=Math.max(8,filtered.length*0.15)||p.sub.includes("Capacity")||p.sub.includes("Upgrade"); m[(hi?"h":"l")+(hd?"H":"E")].push(p); });
+      return m;
+    },[plans,filtered]);
+
+    const branches = useMemo(()=>{
+      const bc=countMap(dispFilt,"branch"),max=bc[0]?.[1]||1;
+      const total=bc.length||1;
+      function rankColor(i,n){
+        const t=n<=1?0:i/(n-1);
+        if(t<0.25) return "#C0453A";
+        if(t<0.50) return "#B07048";
+        if(t<0.72) return "#9C9488";
+        return "#8C96A0";
+      }
+      return bc.map(([branch,count],i)=>{
+        const issues=dispFilt.filter(c=>c.branch===branch);
+        issues.sort((a,b)=>{ const iA=plans0.find(p=>p.sub===a.sub)?.iv||1,iB=plans0.find(p=>p.sub===b.sub)?.iv||1; return iB-iA; });
+        const critCt=issues.filter(d=>(plans0.find(p=>p.sub===d.sub)?.imp||'LOW')==='HIGH').length;
+        return { branch,count,issues,critCt,pct:(count/max)*100,barColor:rankColor(i,total) };
+      });
+    },[dispFilt,plans0]);
+
+    const maxSub=subCts[0]?.[1]||1, maxSrc=srcCts[0]?.[1]||1;
+    const drillData=drillSub?dispFilt.filter(c=>c.sub===drillSub):[];
+    const shLabel="";
+
+    // Month ranges: one button per month found in data
+    // from = first calendar day of that month, to = last data day in that month
+    const monthRanges = useMemo(()=>{
+      const MONTHS=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+      const map={};
+      allData.forEach(d=>{
+        if(!d.dateParsed) return;
+        const y=d.dateParsed.getFullYear(), m=d.dateParsed.getMonth();
+        const key=`${y}-${String(m).padStart(2,'0')}`;
+        if(!map[key]) map[key]={label:MONTHS[m],year:y,month:m,dates:[]};
+        map[key].dates.push(d.dateParsed);
+      });
+      return Object.values(map).sort((a,b)=>a.year-b.year||a.month-b.month).map(({label,year,month})=>{
+        // from = 1st of month, to = last calendar day of month
+        const firstDay=new Date(year,month,1);
+        const lastDay=new Date(year,month+1,0); // day 0 of next month = last day of this month
+        return { label, from:toISO(firstDay), to:toISO(lastDay), month, year };
+      });
+    },[allData]);
+
+    // isMonthActive: true only when dateFrom = 1st of month AND dateTo = last of month
+    const isMonthActive=(mr)=> dateFrom===mr.from && dateTo===mr.to;
+
+    // Smart label: always include year, e.g. "Feb 2026" or "Feb – Mar 2026"
+    const smartLabel = useMemo(()=>{
+      const MONTHS=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+      if(!dateFrom || !dateTo) return "";
+      const d1=new Date(dateFrom), d2=new Date(dateTo);
+      if(isNaN(d1)||isNaN(d2)) return "";
+      const m1=d1.getMonth(), m2=d2.getMonth(), y1=d1.getFullYear(), y2=d2.getFullYear();
+      if(m1===m2 && y1===y2) return `${MONTHS[m1]} ${y1}`;
+      if(y1===y2) return `${MONTHS[m1]} – ${MONTHS[m2]} ${y1}`;
+      return `${MONTHS[m1]} ${y1} – ${MONTHS[m2]} ${y2}`;
+    },[dateFrom,dateTo]);
+
+    // Strip suffixes like "(All in One)", "All in One", "- All in One" etc.
+    // Also strip year if present, keep only short month name
+    function cleanSheetName(name) {
+      return name
+        .replace(/\(\s*all\s*in\s*one\s*\)/gi, '')
+        .replace(/all\s*in\s*one/gi, '')
+        .replace(/20\d{2}/g, '')  // strip tahun e.g. 2026
+        .replace(/[\(\)]/g, '')
+        .trim();
+    }
+
+    const expDetail    = ()=>exportXLSX(filtered.map(p=>({ "Date":p.dateStr,"Branch":p.branch,"Category":p.cat,"Sub-Issue":p.sub,"Status":p.status,"Rating":p.rating||"","Source":p.source,"Inti Permasalahan":p.intiPermasalahan })),`FTL_Detail_${new Date().toISOString().split('T')[0]}.xlsx`,"Detail Logs");
+
+    // Action plan export — includes full detail rows for every sub-issue, one row per complaint
+    const expAction = () => {
+      const wb = XLSX.utils.book_new();
+      // Sheet 1: Summary (strategic items)
+      const summaryRows = plans.map((p,i)=>({
+        "#": i+1, "Sub-Issue": p.sub, "Volume": p.count, "Impact": p.imp,
+        "Strategic Action": p.action, "Detail": p.detail, "Owner": p.owner,
+        "Timeline": tlMap[p.tl]?.label||""
+      }));
+      const ws1 = XLSX.utils.json_to_sheet(summaryRows);
+      ws1['!cols'] = Object.keys(summaryRows[0]).map(k=>({ wch: Math.max(k.length+2,20) }));
+      XLSX.utils.book_append_sheet(wb, ws1, "Action Plan Summary");
+      // Sheet 2: Full detail — every complaint row per sub-issue
+      const detailRows = plans.flatMap(p =>
+        dispFilt.filter(f=>f.sub===p.sub).map(d=>({
+          "Sub-Issue": p.sub, "Impact": p.imp, "Strategic Action": p.action,
+          "Date": d.dateStr, "Branch": d.branch, "Source": d.source,
+          "Status": d.status, "Rating": d.rating||"", "Inti Permasalahan": d.intiPermasalahan
+        }))
+      );
+      const ws2 = XLSX.utils.json_to_sheet(detailRows);
+      ws2['!cols'] = Object.keys(detailRows[0]||{}).map(k=>({ wch: Math.max(k.length+2,20) }));
+      XLSX.utils.book_append_sheet(wb, ws2, "All Complaints Detail");
+      XLSX.writeFile(wb, `FTL_ActionPlan_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    // Drill-down export — export current drillSub complaints
+    const expDrill = (sub) => {
+      const rows = dispFilt.filter(f=>f.sub===sub).map(d=>({
+        "Sub-Issue": sub, "Date": d.dateStr, "Branch": d.branch,
+        "Source": d.source, "Status": d.status, "Rating": d.rating||"",
+        "Category": d.cat, "Inti Permasalahan": d.intiPermasalahan
+      }));
+      exportXLSX(rows, `FTL_Drill_${sub.replace(/[^a-zA-Z0-9]/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`, sub.slice(0,31));
+    };
+
+    const expBranchAll = ()=>exportXLSX(branches.map((b,i)=>({ "Rank":i+1,"Branch":b.branch,"Total Issues":b.count,"Critical (HIGH)":b.critCt })),`FTL_Branches_${new Date().toISOString().split('T')[0]}.xlsx`,"Branch Report");
+
+    /* Loading */
+    if (loading) return (
+      <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+        <div style={{width:44,height:44,border:"3px solid rgba(0,122,255,0.2)",borderTopColor:"#007AFF",borderRadius:"50%"}} className="spin"/>
+        <p style={{fontSize:14,fontWeight:600,color:"rgba(0,0,0,0.5)"}}>Connecting to Live Data…</p>
+      </div>
+    );
+
+    /* Error */
+    if (err) return (
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <div className="glass" style={{padding:36,maxWidth:380,textAlign:"center"}}>
+          <div style={{marginBottom:16,display:"flex",justifyContent:"center"}}>
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="rgba(185,50,42,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3 style={{fontWeight:700,fontSize:18,color:"rgba(0,0,0,0.82)",marginBottom:8}}>Unable to load</h3>
+          <p style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginBottom:24,lineHeight:1.65}}>{err}</p>
+          <button onClick={loadData} className="pill-btn active-black" style={{margin:"0 auto",gap:6}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+
+    const G = ({children,style={}}) => <div className="glass" style={style}>{children}</div>;
+    const sep = <div style={{height:1,background:"rgba(255,255,255,0.22)",margin:"0 24px"}}/>;
+
+    return (
+      <div style={{maxWidth:1300,margin:"0 auto",padding:"28px 20px 80px"}}>
+
+        {/* ── HEADER ── */}
+        <div className="fu" style={{marginBottom:22}}>
+          {/* CSS grid: left col auto-size, right col takes remaining space, never wraps */}
+          <div style={{display:"grid",gridTemplateColumns:"auto 1fr",alignItems:"center",gap:16}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.55)",letterSpacing:"0.10em",textTransform:"uppercase",marginBottom:7}}>
+                FTL GYM
+              </div>
+              <h1 style={{fontSize:44,fontWeight:700,color:"rgba(0,0,0,0.86)",letterSpacing:"-0.025em",lineHeight:1.05,marginBottom:6}}>Complaint Analysis</h1>
+              <p style={{fontSize:13,color:"rgba(0,0,0,0.42)",fontWeight:500}}>{smartLabel} · {data.length} laporan di {branchSet.size} cabang</p>
+            </div>
+            {/* Controls always on the right, wrap within themselves if needed */}
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+
+              {/* Month dropdown — shows active month or custom label */}
+              {monthRanges.length>0 && (
+                <div className="pill-btn" style={{padding:"6px 14px",gap:6,position:"relative"}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.50)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{pointerEvents:"none",flexShrink:0}}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <span style={{fontWeight:700,fontSize:12,color:"rgba(0,0,0,0.78)",pointerEvents:"none",whiteSpace:"nowrap"}}>
+                    {smartLabel}
+                  </span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.40)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{pointerEvents:"none",flexShrink:0}}><polyline points="6 9 12 15 18 9"/></svg>
+                  <select
+                    value={monthRanges.find(mr=>isMonthActive(mr))?`${monthRanges.find(mr=>isMonthActive(mr)).year}-${monthRanges.find(mr=>isMonthActive(mr)).month}`:"custom"}
+                    onChange={e=>{
+                      const mr=monthRanges.find(m=>`${m.year}-${m.month}`===e.target.value);
+                      if(mr){ setFrom(mr.from); setTo(mr.to); }
+                    }}
+                    style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%",fontSize:14}}>
+                    {monthRanges.map(mr=>(
+                      <option key={mr.year+"-"+mr.month} value={`${mr.year}-${mr.month}`}>
+                        {mr.label} {mr.year}
+                      </option>
+                    ))}
+                    {!monthRanges.some(mr=>isMonthActive(mr)) && (
+                      <option value="custom">{smartLabel}</option>
+                    )}
+                  </select>
+                </div>
+              )}
+              {/* Custom date range inputs */}
+              <input type="date" value={dateFrom} onChange={e=>setFrom(e.target.value)} title="Dari tanggal"/>
+              <span style={{fontSize:12,color:"rgba(0,0,0,0.28)",fontWeight:700}}>—</span>
+              <input type="date" value={dateTo} onChange={e=>setTo(e.target.value)} title="Sampai tanggal"/>
+              <div className="pill-btn" style={{gap:6}}>
+                <span style={{width:7,height:7,borderRadius:"50%",background:"#2D8C5A",display:"inline-block",boxShadow:"0 0 6px rgba(45,140,90,0.50)"}}/>
+                <span style={{fontSize:11,fontWeight:600}}>Live · Google Sheets</span>
+              </div>
+              <div className="pill-btn">
+                <span style={{fontSize:11,fontWeight:600}}>{lastFetch?.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</span>
+              </div>
+              <button onClick={loadData} onClick={loadData} className="pill-btn" style={{color:"#2E6DB4",fontWeight:700,gap:5}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── STATUS FILTER ── */}
+        <div className="fu" style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:16,paddingBottom:18,borderBottom:"1px solid rgba(255,255,255,0.30)"}}>
+          <span style={{fontSize:10,fontWeight:800,color:"rgba(0,0,0,0.28)",letterSpacing:"0.12em",textTransform:"uppercase",marginRight:4}}>TRACK :</span>
+          {[{v:"Semua Status",a:"active-black"},{v:"Untouched",a:"active-black"},{v:"On going",a:"active-orange"},{v:"Solved",a:"active-green"},{v:"Not Problem to solve",a:"active-red"}].map(({v,a})=>(
+            <button key={v} onClick={()=>{setStFilt(v);setDrill(null);}} className={`pill-btn ${stFilt===v?a:""}`}>{v}</button>
+          ))}
+        </div>
+
+        {/* ── CATEGORY TABS ── */}
+        <div className="fu" style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:24}}>
+          <button onClick={()=>{setFilter("Semua");setDrill(null);}} className={`tab-btn ${filter==="Semua"?"active":""}`}>
+            All <span style={{opacity:.4,marginLeft:3,fontSize:10}}>{data.filter(c=>stFilt==="Semua Status"||c.status===stFilt).length}</span>
+          </button>
+          {cats.map(c=>(
+            <button key={c} onClick={()=>{setFilter(c);setDrill(null);}} className={`tab-btn ${filter===c?"active":""}`} style={{whiteSpace:"nowrap"}}>
+              {c} <span style={{opacity:.4,marginLeft:3,fontSize:10}}>{catCts[c]||0}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ── KPI STRIP ── */}
+        <div className="fu" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:24}}>
+          {[
+            {l:"COMPLAINTS",   v:filtered.length,                     n:filter==="Semua"?"Seluruh divisi":filter, dot:"#007AFF"},
+            {l:"GOOGLE REVIEWS",v:gReviews.length,                    n:`${oneStars.length} dapat bintang 1`,    dot:"#FF3B30"},
+            {l:"BRANCHES",     v:branchSet.size,                      n:"lokasi terdampak",                      dot:"#34C759"},
+            {l:"TOP ISSUE",    v:subCts[0]?.[0]||"—",                 n:`${subCts[0]?.[1]||0} laporan`,          dot:"#FF9500", sm:true},
+            {l:"DAILY RATE",   v:(filtered.length/daysCt).toFixed(1), n:`per hari (${daysCt} hari)`,             dot:"#AF52DE"},
+          ].map((k,i)=>(
+            <div key={i} className="kpi-card">
+              <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.36)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>{k.l}</div>
+              <div style={{fontSize:k.sm?22:36,fontWeight:800,color:"rgba(0,0,0,0.84)",letterSpacing:"-0.02em",lineHeight:1,marginBottom:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{k.v}</div>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <span style={{width:6,height:6,borderRadius:"50%",background:k.dot,boxShadow:`0 0 7px ${k.dot}80`,flexShrink:0,display:"inline-block"}}/>
+                <span style={{fontSize:11,color:"rgba(0,0,0,0.40)",fontWeight:500}}>{k.n}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── CHARTS ROW ── */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+          {/* Sub-Issues */}
+          <G style={{padding:"22px 26px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <span style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.82)"}}>Sub-Issues</span>
+              <span style={{fontSize:10,fontWeight:600,color:"rgba(0,0,0,0.36)",background:"rgba(0,0,0,0.06)",padding:"4px 10px",borderRadius:20}}>klik untuk drill down</span>
+            </div>
+            {subCts.slice(0,10).map(([name,ct],i)=>(
+              <div key={name} onClick={()=>setDrill(drillSub===name?null:name)}
+                style={{display:"flex",alignItems:"center",gap:12,marginBottom:11,cursor:"pointer",opacity:drillSub&&drillSub!==name?.4:1,transition:"opacity .2s"}}>
+                <span style={{fontSize:12,color:drillSub===name?"rgba(0,0,0,0.80)":"rgba(0,0,0,0.42)",fontWeight:drillSub===name?700:500,width:118,textAlign:"right",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
+                <div className="pb"><div className="pf" style={{width:`${Math.max((ct/maxSub)*100,4)}%`,background:progColors[i%progColors.length],boxShadow:`0 2px 8px ${progColors[i%progColors.length]}50`}}/></div>
+                <span style={{fontSize:13,fontWeight:800,color:"rgba(0,0,0,0.80)",width:22,textAlign:"right",flexShrink:0}}>{ct}</span>
+              </div>
+            ))}
+            {!subCts.length&&<div style={{textAlign:"center",color:"rgba(0,0,0,0.28)",fontSize:13,padding:"20px 0"}}>Tidak ada data</div>}
+          </G>
+
+          {/* Source */}
+          <G style={{padding:"22px 26px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <span style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.82)"}}>Source Distribution</span>
+              <span style={{fontSize:10,fontWeight:600,color:"rgba(0,0,0,0.36)",background:"rgba(0,0,0,0.06)",padding:"4px 10px",borderRadius:20}}>by platform</span>
+            </div>
+            {srcCts.map(([src,ct],i)=>{
+              const clr=sourceColors[src]||progColors[i%progColors.length];
+              return (
+                <div key={src} style={{display:"flex",alignItems:"center",gap:12,marginBottom:11}}>
+                  <span style={{fontSize:12,color:"rgba(0,0,0,0.42)",fontWeight:500,width:118,textAlign:"right",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{src}</span>
+                  <div className="pb"><div className="pf" style={{width:`${Math.max((ct/maxSrc)*100,4)}%`,background:clr,boxShadow:`0 2px 8px ${clr}50`}}/></div>
+                  <span style={{fontSize:13,fontWeight:800,color:"rgba(0,0,0,0.80)",width:22,textAlign:"right",flexShrink:0}}>{ct}</span>
+                </div>
+              );
+            })}
+            {!srcCts.length&&<div style={{textAlign:"center",color:"rgba(0,0,0,0.28)",fontSize:13,padding:"20px 0"}}>Tidak ada data</div>}
+          </G>
+        </div>
+
+        {/* ── PRIORITY MATRIX ── */}
+        <G style={{padding:"22px 26px",marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+            <span style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.82)"}}>Priority Matrix</span>
+            <span style={{fontSize:10,fontWeight:600,color:"rgba(0,0,0,0.36)",background:"rgba(0,0,0,0.06)",padding:"4px 10px",borderRadius:20}}>Dampak × Waktu</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            {[
+              {k:"hE",t:"🔴 Prioritas Mendesak",bg:"rgba(255,59,48,0.09)",   bold:true},
+              {k:"hH",t:"🟠 Gerakan Strategis",  bg:"rgba(255,149,0,0.09)"},
+              {k:"lE",t:"🟢 Cepat Ditangani",    bg:"rgba(52,199,89,0.09)"},
+              {k:"lH",t:"⚪ Pantau & Evaluasi",  bg:"rgba(142,142,147,0.07)"},
+            ].map(q=>(
+              <div key={q.k} className="quad" style={{background:q.bg}}>
+                <div style={{fontSize:11,fontWeight:800,color:"rgba(0,0,0,0.65)",marginBottom:12}}>{q.t}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {matrix[q.k].length?matrix[q.k].map(p=>(
+                    <div key={p.sub} onClick={()=>setDrill(p.sub)}
+                      style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",fontSize:13,fontWeight:q.bold?700:500,color:"rgba(0,0,0,0.78)",transition:"opacity .15s"}}
+                      onMouseEnter={e=>e.currentTarget.style.opacity=.6} onMouseLeave={e=>e.currentTarget.style.opacity=1}>
+                      <span>{p.sub}</span>
+                      <span style={{fontWeight:800,background:"rgba(255,255,255,0.60)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:6,padding:"1px 8px",fontSize:12,boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>{p.count}</span>
+                    </div>
+                  )):<div style={{fontSize:12,color:"rgba(0,0,0,0.25)"}}>—</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </G>
+
+        {/* ── DRILL-DOWN ── */}
+        {drillSub&&(
+          <G style={{marginBottom:16,overflow:"hidden",padding:0}}>
+            <div style={{padding:"14px 24px",background:"rgba(255,255,255,0.10)",borderBottom:"1px solid rgba(255,255,255,0.22)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:16,fontWeight:800,color:"rgba(0,0,0,0.80)"}}>Detail Logs: {drillSub}</span>
+                <span style={{background:"rgba(0,0,0,0.07)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.55)"}}>{drillData.length} entries</span>
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <button onClick={()=>expDrill(drillSub)} className="pill-btn" style={{color:"#2D8C5A",fontSize:11,fontWeight:700,gap:5}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export Excel
+                </button>
+                <button onClick={()=>setDrill(null)} style={{width:28,height:28,borderRadius:"50%",background:"rgba(0,0,0,0.08)",border:"1px solid rgba(255,255,255,0.40)",cursor:"pointer",fontSize:12,fontWeight:700,color:"rgba(0,0,0,0.55)"}}>✕</button>
+              </div>
+            </div>
+            <div style={{overflowX:"auto",maxHeight:380,overflowY:"auto"}}>
+              <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
+                <thead style={{position:"sticky",top:0,background:"rgba(245,245,247,0.72)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",zIndex:10}}>
+                  <tr style={{borderBottom:"1px solid rgba(255,255,255,0.28)"}}>
+                    {["Date","Branch","Issue Summary","Rating","Status"].map(h=>(
+                      <th key={h} style={{padding:"10px 18px",textAlign:"left",fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {drillData.map(c=>(
+                    <tr key={c.id} className="trow" style={{borderBottom:"1px solid rgba(255,255,255,0.20)",opacity:updating[c.realRow]?.5:1,transition:"opacity .2s"}}>
+                      <td style={{padding:"11px 18px",color:"rgba(0,0,0,0.42)",fontWeight:500,whiteSpace:"nowrap"}}>{c.dateStr||"—"}</td>
+                      <td style={{padding:"11px 18px"}}>
+                        <div style={{fontWeight:700,color:"rgba(0,0,0,0.80)"}}>{c.branch}</div>
+                        <div style={{fontSize:10,color:"rgba(0,0,0,0.30)",textTransform:"uppercase",letterSpacing:"0.05em",marginTop:2}}>{c.source}</div>
+                      </td>
+                      <td style={{padding:"11px 18px",color:"rgba(0,0,0,0.55)",fontWeight:500,maxWidth:340,lineHeight:1.5}}>"{c.intiPermasalahan}"</td>
+                      <td style={{padding:"11px 18px",fontWeight:700,color:c.rating?"#A86428":"rgba(0,0,0,0.25)",textAlign:"center"}}>{c.rating?`★ ${c.rating}`:"—"}</td>
+                      <td style={{padding:"11px 18px"}}><StatusSelect value={c.status} rowId={c.realRow} onUpdate={updateStatus} disabled={!!updating[c.realRow]}/></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </G>
+        )}
+
+        {/* ── ACTION PLAN TABLE ── */}
+        <G style={{marginBottom:16,overflow:"hidden",padding:0}}>
+          <div style={{padding:"18px 24px",borderBottom:"1px solid rgba(255,255,255,0.22)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.82)"}}>Action Plan Directory</span>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <button onClick={expAction} className="pill-btn" style={{color:"#2D8C5A",fontSize:11,fontWeight:700,gap:5}}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export Excel
+              </button>
+              <span style={{fontSize:11,fontWeight:600,color:"rgba(0,0,0,0.40)",background:"rgba(0,0,0,0.06)",padding:"5px 12px",borderRadius:20}}>{plans.length} strategic items</span>
+            </div>
+          </div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",fontSize:12,borderCollapse:"collapse",minWidth:820}}>
+              <thead style={{background:"rgba(255,255,255,0.08)"}}>
+                <tr style={{borderBottom:"1px solid rgba(255,255,255,0.22)"}}>
+                  {[{k:null,l:"#"},{k:"sub",l:"Categorization"},{k:"count",l:"Vol"},{k:"iv",l:"Level"},{k:null,l:"Strategic Initiative"},{k:"owner",l:"Owner"},{k:"tl",l:"Timeline"}].map(({k,l})=>(
+                    <th key={l} onClick={k?()=>ts(k):undefined}
+                      style={{padding:"12px 18px",textAlign:"left",fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:"0.08em",cursor:k?"pointer":"default",whiteSpace:"nowrap"}}>
+                      {l}{k&&<Si col={k}/>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {plans.map((p,i)=>{
+                  const tl=tlMap[p.tl]||tlMap.short, isExp=expRow===p.sub;
+                  return (
+                    <React.Fragment key={p.sub}>
+                      <tr className="trow" style={{borderBottom:"1px solid rgba(255,255,255,0.18)",cursor:"pointer",background:isExp?"rgba(255,255,255,0.12)":""}}
+                        onClick={()=>{setExpRow(isExp?null:p.sub);setExpRL(10);}}>
+                        <td style={{padding:"14px 18px",color:"rgba(0,0,0,0.28)",fontWeight:600,textAlign:"center"}}>{i+1}</td>
+                        <td style={{padding:"14px 18px",fontWeight:700,color:"rgba(0,0,0,0.80)"}}>{p.sub}</td>
+                        <td style={{padding:"14px 18px",textAlign:"center",fontWeight:800,color:"rgba(0,0,0,0.78)"}}>{p.count}</td>
+                        <td style={{padding:"14px 18px",textAlign:"center"}}><ImpBadge imp={p.imp}/></td>
+                        <td style={{padding:"14px 18px",maxWidth:300}}>
+                          <div style={{fontWeight:700,color:"rgba(0,0,0,0.80)",marginBottom:3}}>{p.action}</div>
+                          <div style={{fontSize:11,color:"rgba(0,0,0,0.42)",lineHeight:1.5}}>{p.detail}</div>
+                        </td>
+                        <td style={{padding:"14px 18px",fontWeight:700,color:"rgba(0,0,0,0.55)"}}>{p.owner}</td>
+                        <td style={{padding:"14px 18px",textAlign:"center"}}><span style={{fontWeight:800,fontSize:12,color:tl.clr}}>{tl.label}</span></td>
+                      </tr>
+                      {isExp&&(
+                        <tr style={{background:"rgba(255,255,255,0.08)"}}>
+                          <td colSpan={7} style={{padding:"16px 24px 22px"}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.22)"}}>
+                              <span style={{fontSize:10,fontWeight:800,color:"rgba(0,0,0,0.32)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Detail Keluhan</span>
+                              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                                <button onClick={()=>expDrill(p.sub)} className="pill-btn" style={{color:"#2D8C5A",fontSize:10,fontWeight:700,gap:4,padding:"4px 10px"}}>
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                  Export Excel
+                                </button>
+                              <select value={expRL} onChange={e=>setExpRL(Number(e.target.value))}
+                                style={{fontSize:11,border:"1px solid rgba(255,255,255,0.40)",borderRadius:8,padding:"3px 8px",color:"rgba(0,0,0,0.60)",fontWeight:600,cursor:"pointer",background:"rgba(255,255,255,0.30)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)"}}>
+                                {[10,20,50,99999].map(v=><option key={v} value={v}>Show {v===99999?"All":v}</option>)}
+                              </select>
+                              </div>
+                            </div>
+                            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                              {dispFilt.filter(f=>f.sub===p.sub).slice(0,expRL).map((d,idx)=>(
+                                <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                                  <span style={{fontWeight:700,color:"rgba(0,0,0,0.80)",fontSize:13}}>{d.branch}</span>
+                                  <span style={{fontSize:11,color:"rgba(0,0,0,0.30)"}}>{d.dateStr||"N/A"}</span>
+                                  {d.source&&<span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"rgba(0,0,0,0.38)",background:"rgba(0,0,0,0.06)",padding:"2px 8px",borderRadius:20}}>{d.source}</span>}
+                                  <StatusSelect value={d.status} rowId={d.realRow} onUpdate={updateStatus} disabled={!!updating[d.realRow]}/>
+                                  <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontStyle:"italic",flex:1}}>"{d.intiPermasalahan}"</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </G>
+
+        {/* ── TOP AFFECTED CLUBS — bar chart ── */}
+        <G style={{overflow:"hidden",marginBottom:16,padding:0}}>
+          <div style={{padding:"18px 24px",borderBottom:"1px solid rgba(255,255,255,0.22)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.82)"}}>Top Affected Clubs</span>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <button onClick={expBranchAll} className="pill-btn" style={{color:"#2D8C5A",fontSize:11,fontWeight:700,gap:5}}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export Excel
+              </button>
+              <span style={{fontSize:11,fontWeight:600,color:"rgba(0,0,0,0.40)",background:"rgba(0,0,0,0.06)",padding:"5px 12px",borderRadius:20}}>{branches.length} cabang</span>
+            </div>
+          </div>
+          {/* 2-column bar chart */}
+          <div style={{padding:"18px 28px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",columnGap:52}}>
+            {branches.slice(0,24).map(b=>(
+              <div key={b.branch} style={{display:"flex",alignItems:"center",gap:12,padding:"7px 0",borderBottom:"1px solid rgba(255,255,255,0.18)",cursor:"pointer"}}
+                onClick={()=>setExpBr(expBr===b.branch?null:b.branch)}
+                onMouseEnter={e=>e.currentTarget.style.opacity=.75} onMouseLeave={e=>e.currentTarget.style.opacity=1}>
+                <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontWeight:500,width:108,textAlign:"right",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.branch}</span>
+                <div className="pb"><div className="pf" style={{width:`${b.pct}%`,background:b.barColor,boxShadow:`0 1px 6px ${b.barColor}35`}}/></div>
+                <span style={{fontSize:13,fontWeight:700,color:b.barColor,width:22,textAlign:"right",flexShrink:0}}>{b.count}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Branch drill-down */}
+          {branches.filter(b=>b.branch===expBr).map(bInfo=>(
+            <div key={bInfo.branch} style={{margin:"12px 20px 20px",borderRadius:18,background:"rgba(255,255,255,0.10)",backdropFilter:"blur(30px) saturate(200%)",WebkitBackdropFilter:"blur(30px) saturate(200%)",borderTop:"1px solid rgba(255,255,255,0.55)",borderRight:"1px solid rgba(255,255,255,0.20)",borderBottom:"1px solid rgba(255,255,255,0.12)",borderLeft:"1px solid rgba(255,255,255,0.20)",overflow:"hidden"}}>
+              <div style={{padding:"12px 20px",borderBottom:"1px solid rgba(255,255,255,0.20)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontWeight:800,color:"rgba(0,0,0,0.82)",fontSize:14}}>{bInfo.branch}</span>
+                  {bInfo.critCt>0&&<ImpBadge imp="HIGH"/>}
+                  <span style={{fontSize:12,color:"rgba(0,0,0,0.40)"}}>{bInfo.count} issues · {bInfo.critCt} critical</span>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <select value={brLim} onChange={e=>setBrLim(Number(e.target.value))}
+                    style={{fontSize:11,border:"1px solid rgba(255,255,255,0.40)",borderRadius:8,padding:"3px 8px",color:"rgba(0,0,0,0.60)",fontWeight:600,cursor:"pointer",background:"rgba(255,255,255,0.30)",backdropFilter:"blur(10px)"}}>
+                    {[10,20,50,99999].map(v=><option key={v} value={v}>Show {v===99999?"All":v}</option>)}
+                  </select>
+                  <button onClick={()=>{ const rows=bInfo.issues.map((d,idx)=>({"#":idx+1,"Branch":d.branch,"Sub-Issue":d.sub,"Date":d.dateStr,"Status":d.status,"Rating":d.rating||"","Source":d.source,"Summary":d.intiPermasalahan})); exportXLSX(rows,`FTL_${bInfo.branch}_${new Date().toISOString().split('T')[0]}.xlsx`,bInfo.branch.slice(0,31)); }}
+                    className="pill-btn" style={{fontSize:10,color:"#2D8C5A",fontWeight:700,gap:4}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Excel</button>
+                  <button onClick={()=>setExpBr(null)} style={{width:26,height:26,borderRadius:"50%",background:"rgba(0,0,0,0.08)",border:"1px solid rgba(255,255,255,0.40)",cursor:"pointer",fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.50)"}}>✕</button>
+                </div>
+              </div>
+              <div style={{padding:"14px 20px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.30)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>Keluhan — Urut dari paling urgent</div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {bInfo.issues.slice(0,brLim).map((d,idx)=>{
+                    const imp=plans0.find(p=>p.sub===d.sub)?.imp||'LOW';
+                    return (
+                      <div key={idx} className="glass-inner" style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                        <ImpBadge imp={imp}/>
+                        <span style={{fontWeight:700,color:"rgba(0,0,0,0.80)",fontSize:13}}>{d.sub}</span>
+                        <span style={{fontSize:11,color:"rgba(0,0,0,0.30)"}}>{d.dateStr||"N/A"}</span>
+                        <StatusSelect value={d.status} rowId={d.realRow} onUpdate={updateStatus} disabled={!!updating[d.realRow]}/>
+                        <span style={{fontSize:12,color:"rgba(0,0,0,0.50)",fontStyle:"italic",flex:1}}>"{d.intiPermasalahan}"</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </G>
+
+        {/* ── EXPORT FOOTER ── */}
+        <G style={{padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:800,color:"rgba(0,0,0,0.80)",marginBottom:3}}>Export Data</div>
+            <div style={{fontSize:12,color:"rgba(0,0,0,0.38)"}}>Download semua data dalam format Excel (.xlsx)</div>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button onClick={expDetail}    className="pill-btn" style={{color:"#2E6DB4",fontWeight:700,gap:6}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Detail Logs</button>
+            <button onClick={expAction}    className="pill-btn" style={{color:"#7A52A8",fontWeight:700,gap:6}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Action Plan</button>
+            <button onClick={expBranchAll} className="pill-btn" style={{color:"#2D8C5A",fontWeight:700,gap:6}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Branch Report</button>
+          </div>
+        </G>
+
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
