@@ -367,12 +367,15 @@
     });
     // Fallback: if date col not found by header, detect by content (Date(...) pattern)
     if(ci.date==null){
-      const sample=cells.slice(0,5);
+      const sample=cells.slice(0,10); // check more rows
       for(let col=0;col<(cells[0]?.length||0);col++){
         if(sample.some(row=>row[col]?.v&&/Date\(\d+,\d+,\d+\)/.test(row[col].v))){
-          ci.date=col; break;
+          ci.date=col;
+          console.log("[FTL] gid="+gidStr+" date col detected by content at col="+col);
+          break;
         }
       }
+      if(ci.date==null) console.warn("[FTL] gid="+gidStr+" CANNOT detect date col! headers=",headers.slice(0,6));
     }
     const out=[];
     rows.forEach((r,i)=>{
