@@ -352,7 +352,10 @@
         headers=rows[0];rows=rows.slice(1);cells=cells.slice(1);hoff=2;
       }
     }
+    // ── Reliable column detection: header name + content fallback ──
     const h=headers.map(x=>x.toLowerCase().trim()),ci={};
+
+    // Pass 1: detect by header name
     h.forEach((v,i)=>{
       if(v.includes("tanggal")||v.includes("date")) ci.date=i;
       if(v.includes("cabang")||v.includes("branch")) ci.branch=i;
@@ -365,13 +368,85 @@
       if(v.includes("feedback")) ci.feedback=i;
       if(v.includes("nama customer")||v.includes("nama member")||v.includes("customer")) ci.customer=i;
     });
-    // Fallback: if date col not found by header, detect by content (Date(...) pattern)
+
+    // Pass 2: detect by content for any column not yet found
+    const ncols = cells[0]?.length||0;
+    const allVals = (col) => cells.map(r=>r[col]?.v||"").filter(Boolean);
+    const allFormatted = (col) => cells.map(r=>r[col]?.f||r[col]?.v||"").filter(Boolean);
+
+    // Date: look for Date(...) pattern in raw values
     if(ci.date==null){
-      // Scan ALL rows (not just first 10) to find Date(...) pattern
-      for(let col=0;col<(cells[0]?.length||0);col++){
-        if(cells.some(row=>row[col]?.v&&/Date\(\d+,\d+,\d+\)/.test(row[col].v))){
-          ci.date=col; break;
+      for(let col=0;col<ncols;col++){
+        if(allVals(col).some(v=>/^Date\(\d+,\d+,\d+\)$/.test(v))){ci.date=col;break;}
+      }
+    }
+    // Branch: look for col with many unique short strings (city names)
+    if(ci.branch==null){
+      for(let col=0;col<ncols;col++){
+        const vals=allFormatted(col).filter(v=>v.length>1&&v.length<40&&!/^\d+$/.test(v)&&!/Date\(/.test(v));
+        const uniq=new Set(vals);
+        if(vals.length>5&&uniq.size>=3&&uniq.size<vals.length*0.8){ci.branch=col;break;}
+      }
+    }
+    // Issue/category: look for col with repeated category keywords
+    if(ci.issue==null){
+      const catKw=/komplain|request|fasilitas|alat|kebersihan|staff|parkir|membership|kelas/i;
+      for(let col=0;col<ncols;col++){
+        const vals=allFormatted(col);
+        if(vals.filter(v=>catKw.test(v)).length > vals.length*0.3){ci.issue=col;break;}
+      }
+    }
+    // Source: look for col with platform names
+    if(ci.source==null){
+      const srcKw=/google|whatsapp|instagram|quick response|in-apps|panggilan/i;
+      for(let col=0;col<ncols;col++){
+        const vals=allFormatted(col);
+        if(vals.filter(v=>srcKw.test(v)).length > vals.length*0.3){ci.source=col;break;}
+      }
+    }
+    // Rating: look for col with only numbers 1-5
+    if(ci.rating==null){
+      for(let col=0;col<ncols;col++){
+        const vals=allVals(col).filter(Boolean);
+        if(vals.length>0&&vals.every(v=>["1","2","3","4","5",""].includes(v))){ci.rating=col;break;}
+      }
+    }
+    // Comment/komentar: longest text col
+    if(ci.comment==null){
+      let maxAvg=0;
+      for(let col=0;col<ncols;col++){
+        if([ci.date,ci.branch,ci.issue,ci.source,ci.rating].includes(col)) continue;
+        const vals=allFormatted(col).filter(Boolean);
+        const avg=vals.reduce((a,b)=>a+b.length,0)/(vals.length||1);
+        if(avg>maxAvg&&avg>30){maxAvg=avg;ci.comment=col;}
+      }
+    }
+    // Customer: col with proper names (mix of uppercase words)
+    if(ci.customer==null){
+      for(let col=0;col<ncols;col++){
+        if([ci.date,ci.branch,ci.issue,ci.source,ci.rating,ci.comment].includes(col)) continue;
+        const vals=allFormatted(col).filter(Boolean);
+        if(vals.length>3&&vals.filter(v=>/^[A-Z][a-zA-Z\s]+$/.test(v.trim())||/^[A-Z\s]+$/.test(v.trim())).length>vals.length*0.5){
+          ci.customer=col;break;
         }
+      }
+    }
+    // Summary/inti permasalahan: second longest text col
+    if(ci.summary==null){
+      let maxAvg=0;
+      for(let col=0;col<ncols;col++){
+        if([ci.date,ci.branch,ci.issue,ci.source,ci.rating,ci.comment,ci.customer].includes(col)) continue;
+        const vals=allFormatted(col).filter(Boolean);
+        const avg=vals.reduce((a,b)=>a+b.length,0)/(vals.length||1);
+        if(avg>maxAvg&&avg>20){maxAvg=avg;ci.summary=col;}
+      }
+    }
+    // Feedback: remaining text col not yet assigned
+    if(ci.feedback==null){
+      for(let col=0;col<ncols;col++){
+        if(Object.values(ci).includes(col)) continue;
+        const vals=allFormatted(col).filter(Boolean);
+        if(vals.length>0) {ci.feedback=col;break;}
       }
     }
     const out=[];
