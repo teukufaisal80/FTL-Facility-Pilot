@@ -640,14 +640,26 @@
   }
 
   // ════════════════════════════════════════
-  // AI ANALYSIS COMPONENT
+
+  // ════════════════════════════════════════
+  // AI ANALYSIS COMPONENT — compact box
   // ════════════════════════════════════════
   function AIAnalysis({divData, division, plans, branches, monthRanges}){
-    const [loading, setLoading] = useState(false);
-    const [modal, setModal]     = useState(null);
-    const [error, setError]     = useState(null);
-    const [custom, setCustom]   = useState("");
-    const [active, setActive]   = useState(null);
+    const [open,setOpen]       = useState(false);
+    const [loading,setLoading] = useState(false);
+    const [modal,setModal]     = useState(null);
+    const [error,setError]     = useState(null);
+    const [customModal,setCM]  = useState(false);
+    const [custom,setCustom]   = useState("");
+    const [active,setActive]   = useState(null);
+    const boxRef               = useRef(null);
+
+    // Close dropdown when clicking outside
+    useEffect(()=>{
+      const handler=(e)=>{ if(boxRef.current&&!boxRef.current.contains(e.target)) setOpen(false); };
+      document.addEventListener("mousedown",handler);
+      return()=>document.removeEventListener("mousedown",handler);
+    },[]);
 
     function buildContext(){
       const sorted=[...monthRanges].sort((a,b)=>b.year-a.year||b.month-a.month).slice(0,3);
@@ -659,23 +671,23 @@
       const ti=Object.entries(ic).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`${k}(${v})`).join(", ");
       const tb=Object.entries(bc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`${k}(${v})`).join(", ");
       const ts=Object.entries(sc).map(([k,v])=>`${k}:${v}`).join(", ");
-      return {ctx:`Divisi: ${division.label}\nPeriode: ${labels}\nTotal keluhan: ${recent.length}\nTop isu: ${ti}\nTop cabang: ${tb}\nStatus: ${ts}`, labels, total:recent.length};
+      return {ctx:`Divisi: ${division.label}\nPeriode: ${labels}\nTotal keluhan: ${recent.length}\nTop isu: ${ti}\nTop cabang: ${tb}\nStatus: ${ts}`, labels};
     }
 
-    const SUFFIX=`\n\nKonteks: Kamu adalah konsultan operasional untuk jaringan gym FTL. Gunakan terminologi yang familiar: member, cabang/outlet, FC (Front Counter), PT (Personal Trainer), GX (Group Exercise), MC (Member Care), OB (Office Boy), staff, loker, alat gym, treadmill, dumbbell, barbel, kebersihan, fasilitas, parkir, membership, kelas, Google Review, Quick Response, WhatsApp, In-Apps.\n\nBALAS HANYA dengan JSON valid berikut, tidak ada teks lain:\n{"summary":"ringkasan 1-2 kalimat yang spesifik ke kondisi gym","items":[{"action":"langkah konkret spesifik gym maks 70 karakter","detail":"penjelasan konteks gym maks 120 karakter","days":3}]}\nSetiap item wajib punya action, detail, dan days (angka hari 1-30). Buat 4-6 items yang actionable dan realistis untuk operasional gym.`;
+    const SUFFIX=`\n\nKonteks: Konsultan operasional jaringan gym FTL. Gunakan terminologi: member, cabang/outlet, FC, PT, GX, MC, OB, staff, loker, alat gym, treadmill, dumbbell, kebersihan, fasilitas, parkir, membership, kelas, Google Review, Quick Response, WhatsApp.\n\nBALAS HANYA JSON valid, tidak ada teks lain:\n{"summary":"ringkasan 1-2 kalimat spesifik","items":[{"action":"langkah konkret maks 70 karakter","detail":"penjelasan maks 120 karakter","days":3}]}\nBuat 4-6 items, days maksimal 30, actionable untuk operasional gym.`;
 
-    async function analyze(type){
-      if(type==="custom"&&!custom.trim()){setError("Masukkan pertanyaan dulu.");return;}
-      setLoading(true);setError(null);setModal(null);setActive(type);
+    async function analyze(type, customText){
+      setOpen(false); setCM(false);
+      setLoading(true); setError(null); setModal(null); setActive(type);
       try{
         const {ctx,labels}=buildContext();
-        const titles={freq:"Isu Paling Sering Muncul",impact:"Isu Paling Berdampak",outlet:"Outlet Terbanyak Komplain",focus:"Rekomendasi Fokus Bulan Ini",custom:custom};
+        const titles={freq:"Isu Paling Sering Muncul",impact:"Isu Paling Berdampak",outlet:"Outlet Terbanyak Komplain",focus:"Rekomendasi Fokus Bulan Ini",custom:customText||"Analisa Custom"};
         const prompts={
-          freq:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa sub-issue paling sering dan berikan action items konkret beserta estimasi hari penyelesaian.${SUFFIX}`,
-          impact:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa sub-issue paling berdampak pada member dan bisnis, berikan action items konkret.${SUFFIX}`,
-          outlet:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa outlet/cabang dengan keluhan terbanyak, berikan action items untuk manajemen.${SUFFIX}`,
-          focus:`Data keluhan FTL Gym:\n${ctx}\n\nBerikan 5-6 rekomendasi fokus bulan ini secara komprehensif dari 3 aspek: (1) sub-issue paling sering dan paling berdampak pada member, (2) outlet/cabang dengan keluhan terbanyak yang butuh intervensi, (3) pola status keluhan yang perlu diperbaiki. Gabungkan insights dari ketiga aspek menjadi action items terintegrasi dan realistis untuk operasional gym. Urutkan dari paling mendesak.${SUFFIX}`,
-          custom:`Data keluhan FTL Gym:\n${ctx}\n\nPertanyaan: ${custom}\n\nJawab dengan action items konkret.${SUFFIX}`
+          freq:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa sub-issue paling sering muncul, berikan action items konkret.${SUFFIX}`,
+          impact:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa sub-issue paling berdampak pada kepuasan member dan bisnis.${SUFFIX}`,
+          outlet:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa outlet/cabang dengan keluhan terbanyak, action untuk manajemen.${SUFFIX}`,
+          focus:`Data keluhan FTL Gym:\n${ctx}\n\nRekomendasi fokus bulan ini dari 3 aspek: (1) sub-issue paling sering & berdampak, (2) outlet butuh intervensi, (3) pola status keluhan. Gabungkan jadi action terintegrasi, urutkan paling mendesak.${SUFFIX}`,
+          custom:`Data keluhan FTL Gym:\n${ctx}\n\nPertanyaan: ${customText}\n\nJawab dengan action items konkret.${SUFFIX}`
         };
         const res=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({contents:[{parts:[{text:prompts[type]}]}],generationConfig:{maxOutputTokens:1500,temperature:0.6}})});
@@ -690,103 +702,151 @@
       setLoading(false);
     }
 
-    const btns=[
-      {id:"freq",icon:"📊",label:"Isu Paling Sering"},
-      {id:"impact",icon:"⚡",label:"Isu Paling Berdampak"},
-      {id:"outlet",icon:"📍",label:"Outlet Terbanyak Komplain"},
-      {id:"focus",icon:"🎯",label:"Rekomendasi Fokus Bulan Ini"},
+    const menuItems=[
+      {id:"freq", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>, label:"Isu Paling Sering"},
+      {id:"impact",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, label:"Isu Paling Berdampak"},
+      {id:"outlet",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>, label:"Outlet Terbanyak Komplain"},
+      {id:"focus", icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>, label:"Rekomendasi Fokus Bulan Ini"},
+      {id:"custom",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>, label:"Tulis Pertanyaan Sendiri..."},
     ];
 
     return (
       <>
-        <div className="glass" style={{marginBottom:16,overflow:"hidden"}}>
-          <div style={{padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.055)",display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:22}}>✨</span>
-            <div>
-              <div style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.82)"}}>AI Analysis</div>
-              <div style={{fontSize:11,color:"rgba(0,0,0,0.40)",marginTop:1}}>Powered by Gemini · Data 3 bulan terakhir · {division.label}</div>
+        {/* Analysis Box trigger */}
+        <div ref={boxRef} style={{position:"relative",display:"inline-block"}}>
+          <button onClick={()=>!loading&&setOpen(o=>!o)}
+            style={{width:160,height:72,borderRadius:18,cursor:"pointer",textAlign:"left",padding:"14px 16px",
+              background:open?"rgba(28,28,30,0.90)":"rgba(255,255,255,0.75)",
+              backdropFilter:"blur(40px) saturate(180%)",WebkitBackdropFilter:"blur(40px) saturate(180%)",
+              borderTop:`1px solid ${open?"rgba(255,255,255,0.18)":"rgba(255,255,255,0.92)"}`,
+              borderRight:`1px solid ${open?"rgba(255,255,255,0.10)":"rgba(255,255,255,0.55)"}`,
+              borderBottom:`1px solid ${open?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.40)"}`,
+              borderLeft:`1px solid ${open?"rgba(255,255,255,0.10)":"rgba(255,255,255,0.55)"}`,
+              boxShadow:open?"inset 0 0.5px 0 rgba(255,255,255,0.15),0 4px 16px rgba(0,0,0,0.25)":"inset 0 0.5px 0 rgba(255,255,255,0.98),0 4px 16px rgba(0,0,0,0.08)",
+              transition:"all 0.15s",fontFamily:"inherit",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{width:24,height:24,borderRadius:7,background:open?"rgba(255,255,255,0.15)":"rgba(28,28,30,0.10)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={open?"#fff":"rgba(0,0,0,0.60)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                </svg>
+              </div>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={open?"rgba(255,255,255,0.50)":"rgba(0,0,0,0.28)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}><polyline points="6 9 12 15 18 9"/></svg>
             </div>
-          </div>
-          <div style={{padding:"20px 24px"}}>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-              {btns.map(b=>(
-                <button key={b.id} onClick={()=>analyze(b.id)} disabled={loading}
-                  className={`pill-btn${active===b.id&&loading?" active-black":""}`}
-                  style={{fontSize:12,fontWeight:700,gap:6,opacity:loading&&active!==b.id?.5:1,cursor:loading?"not-allowed":"pointer"}}>
-                  {loading&&active===b.id
-                    ?<><div style={{width:12,height:12,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"#fff",borderRadius:"50%"}} className="spin"/>{b.label}</>
-                    :<>{b.icon} {b.label}</>}
-                </button>
-              ))}
+            {loading
+              ?<div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{width:11,height:11,border:"2px solid rgba(0,0,0,0.15)",borderTopColor:open?"#fff":"rgba(0,0,0,0.55)",borderRadius:"50%"}} className="spin"/>
+                  <span style={{fontSize:11,fontWeight:600,color:open?"rgba(255,255,255,0.80)":"rgba(0,0,0,0.45)"}}>Menganalisa...</span>
+                </div>
+              :<div>
+                <div style={{fontSize:13,fontWeight:800,color:open?"#fff":"rgba(0,0,0,0.82)",letterSpacing:"-0.01em",marginBottom:1}}>Analysis Box</div>
+                <div style={{fontSize:10,fontWeight:500,color:open?"rgba(255,255,255,0.50)":"rgba(0,0,0,0.36)"}}>AI · Gemini</div>
+              </div>}
+          </button>
+
+          {/* Dropdown menu */}
+          {open&&(
+            <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,minWidth:220,zIndex:1000,
+              background:"rgba(255,255,255,0.88)",backdropFilter:"blur(40px) saturate(180%)",WebkitBackdropFilter:"blur(40px) saturate(180%)",
+              borderTop:"1px solid rgba(255,255,255,0.92)",borderRight:"1px solid rgba(255,255,255,0.55)",
+              borderBottom:"1px solid rgba(255,255,255,0.40)",borderLeft:"1px solid rgba(255,255,255,0.55)",
+              borderRadius:16,boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.98),0 8px 32px rgba(0,0,0,0.14),0 2px 8px rgba(0,0,0,0.08)",
+              overflow:"hidden",animation:"fu 0.15s ease both"}}>
+              <div style={{padding:"6px"}}>
+                {menuItems.map((item,i)=>(
+                  <button key={item.id}
+                    onClick={()=>{ if(item.id==="custom"){setOpen(false);setCM(true);}else{analyze(item.id);}}}
+                    style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
+                      borderRadius:10,border:"none",background:"transparent",cursor:"pointer",
+                      fontSize:12,fontWeight:600,color:"rgba(0,0,0,0.72)",textAlign:"left",
+                      fontFamily:"inherit",transition:"background 0.10s"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,0.06)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <span style={{color:"rgba(0,0,0,0.40)",flexShrink:0}}>{item.icon}</span>
+                    {item.label}
+                    {item.id==="custom"&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginLeft:"auto"}}><polyline points="9 18 15 12 9 6"/></svg>}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div style={{display:"flex",gap:8}}>
-              <input type="text" value={custom} onChange={e=>setCustom(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&!loading&&analyze("custom")}
-                placeholder="✍️  Tulis pertanyaan analisa sendiri... (Enter untuk kirim)"
-                style={{flex:1,padding:"9px 16px",borderRadius:12,border:"1px solid rgba(0,0,0,0.12)",fontSize:13,fontWeight:500,color:"rgba(0,0,0,0.78)",background:"rgba(255,255,255,0.90)",outline:"none",fontFamily:"inherit"}}/>
-              <button onClick={()=>!loading&&analyze("custom")} disabled={loading||!custom.trim()}
-                className="pill-btn active-black" style={{padding:"9px 20px",fontWeight:700,fontSize:13,opacity:!custom.trim()?.45:1}}>
-                {loading&&active==="custom"?<div style={{width:14,height:14,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"#fff",borderRadius:"50%"}} className="spin"/>:"Analisa"}
-              </button>
-            </div>
-            {error&&<div style={{marginTop:12,padding:"12px 16px",borderRadius:12,background:"rgba(185,50,42,0.08)",border:"1px solid rgba(185,50,42,0.20)",color:"#B8332A",fontSize:13,fontWeight:600}}>⚠️ {error}</div>}
-          </div>
+          )}
         </div>
 
+        {/* Custom input popup */}
+        {customModal&&(
+          <div style={{position:"fixed",inset:0,zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24,
+            background:"rgba(0,0,0,0.25)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)"}}
+            onClick={e=>e.target===e.currentTarget&&setCM(false)}>
+            <div style={{width:"100%",maxWidth:520,borderRadius:24,
+              background:"rgba(255,255,255,0.88)",backdropFilter:"blur(62px) saturate(200%)",WebkitBackdropFilter:"blur(62px) saturate(200%)",
+              borderTop:"1px solid rgba(255,255,255,0.92)",borderRight:"1px solid rgba(255,255,255,0.55)",
+              borderBottom:"1px solid rgba(255,255,255,0.40)",borderLeft:"1px solid rgba(255,255,255,0.55)",
+              boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.98),0 32px 80px rgba(0,0,0,0.20)",
+              padding:"28px 28px 24px",animation:"fu 0.20s ease both"}}>
+              <div style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.84)",marginBottom:6,letterSpacing:"-0.01em"}}>Tulis Pertanyaan Analisa</div>
+              <div style={{fontSize:12,color:"rgba(0,0,0,0.40)",marginBottom:18,fontWeight:500}}>AI akan menganalisa berdasarkan data {division.label} 3 bulan terakhir</div>
+              <textarea value={custom} onChange={e=>setCustom(e.target.value)}
+                placeholder="Contoh: Cabang mana yang paling perlu perhatian khusus bulan ini?"
+                rows={4}
+                style={{width:"100%",padding:"12px 16px",borderRadius:14,border:"1px solid rgba(0,0,0,0.12)",
+                  fontSize:13,fontWeight:500,color:"rgba(0,0,0,0.78)",background:"rgba(255,255,255,0.90)",
+                  outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.6,
+                  boxShadow:"inset 0 1px 4px rgba(0,0,0,0.06)"}}
+                autoFocus/>
+              <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
+                <button onClick={()=>setCM(false)} className="pill-btn" style={{fontWeight:600,fontSize:13}}>Batal</button>
+                <button onClick={()=>custom.trim()&&analyze("custom",custom)} disabled={!custom.trim()}
+                  className="pill-btn active-black" style={{fontWeight:700,fontSize:13,padding:"8px 24px",opacity:!custom.trim()?.45:1}}>
+                  Analisa
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Result modal */}
         {modal&&(
           <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,
             background:"rgba(0,0,0,0.25)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)"}}
             onClick={e=>e.target===e.currentTarget&&setModal(null)}>
             <div style={{width:"100%",maxWidth:600,maxHeight:"88vh",overflowY:"auto",borderRadius:28,
-              background:"rgba(255,255,255,0.78)",
-              backdropFilter:"blur(62px) saturate(200%) brightness(1.05)",
-              WebkitBackdropFilter:"blur(62px) saturate(200%) brightness(1.05)",
-              borderTop:"1px solid rgba(255,255,255,0.92)",
-              borderRight:"1px solid rgba(255,255,255,0.55)",
-              borderBottom:"1px solid rgba(255,255,255,0.40)",
-              borderLeft:"1px solid rgba(255,255,255,0.55)",
-              boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.98),0 40px 100px rgba(0,0,0,0.22),0 8px 24px rgba(0,0,0,0.10)",
+              background:"rgba(255,255,255,0.78)",backdropFilter:"blur(62px) saturate(200%) brightness(1.05)",WebkitBackdropFilter:"blur(62px) saturate(200%) brightness(1.05)",
+              borderTop:"1px solid rgba(255,255,255,0.92)",borderRight:"1px solid rgba(255,255,255,0.55)",
+              borderBottom:"1px solid rgba(255,255,255,0.40)",borderLeft:"1px solid rgba(255,255,255,0.55)",
+              boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.98),0 40px 100px rgba(0,0,0,0.22)",
               animation:"fu 0.22s ease both"}}>
-              <div style={{padding:"22px 24px 16px",borderBottom:"1px solid rgba(255,255,255,0.40)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"sticky",top:0,
-                background:"rgba(255,255,255,0.72)",backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",
-                borderRadius:"28px 28px 0 0",zIndex:1}}>
+              {/* Header */}
+              <div style={{padding:"22px 24px 16px",borderBottom:"1px solid rgba(255,255,255,0.40)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",
+                position:"sticky",top:0,background:"rgba(255,255,255,0.82)",backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",borderRadius:"28px 28px 0 0",zIndex:1}}>
                 <div>
-                  <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:"0.10em",marginBottom:5}}>✨ AI Analysis · {division.label}</div>
+                  <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:"0.10em",marginBottom:5,display:"flex",alignItems:"center",gap:6}}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.40)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                    AI Analysis · {division.label}
+                  </div>
                   <div style={{fontSize:20,fontWeight:800,color:"rgba(0,0,0,0.86)",letterSpacing:"-0.01em"}}>{modal.title}</div>
                 </div>
-                <button onClick={()=>setModal(null)} style={{width:32,height:32,borderRadius:"50%",
-                  background:"rgba(0,0,0,0.08)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",
-                  border:"1px solid rgba(255,255,255,0.60)",cursor:"pointer",fontSize:13,color:"rgba(0,0,0,0.50)",fontWeight:700,flexShrink:0,marginLeft:16,
-                  boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.80)"}}>✕</button>
+                <button onClick={()=>setModal(null)} style={{width:32,height:32,borderRadius:"50%",background:"rgba(0,0,0,0.08)",backdropFilter:"blur(10px)",border:"1px solid rgba(255,255,255,0.60)",cursor:"pointer",fontSize:13,color:"rgba(0,0,0,0.50)",fontWeight:700,flexShrink:0,marginLeft:16,boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.80)"}}>✕</button>
               </div>
+              {/* Summary */}
               {modal.summary&&(
                 <div style={{padding:"14px 24px",background:"rgba(0,122,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.40)"}}>
                   <p style={{fontSize:13,color:"rgba(0,0,0,0.65)",lineHeight:1.65,fontWeight:500}}>{modal.summary}</p>
                 </div>
               )}
+              {/* Items */}
               <div style={{padding:"16px 24px 8px"}}>
                 <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.30)",textTransform:"uppercase",letterSpacing:"0.10em",marginBottom:10}}>Action Items & Timeline</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   {modal.items.map((item,i)=>(
                     <div key={i} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"14px 16px",borderRadius:16,
-                      background:"rgba(255,255,255,0.85)",
-                      backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-                      borderTop:"1px solid rgba(255,255,255,0.90)",
-                      borderRight:"1px solid rgba(255,255,255,0.50)",
-                      borderBottom:"1px solid rgba(255,255,255,0.35)",
-                      borderLeft:"1px solid rgba(255,255,255,0.50)",
+                      background:"rgba(255,255,255,0.85)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+                      borderTop:"1px solid rgba(255,255,255,0.90)",borderRight:"1px solid rgba(255,255,255,0.50)",
+                      borderBottom:"1px solid rgba(255,255,255,0.35)",borderLeft:"1px solid rgba(255,255,255,0.50)",
                       boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.95),0 2px 8px rgba(0,0,0,0.05)"}}>
-                      <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(28,28,30,0.88)",color:"#fff",
-                        display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0,marginTop:1}}>
-                        {i+1}
-                      </div>
+                      <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(28,28,30,0.88)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0,marginTop:1}}>{i+1}</div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:5}}>
                           <div style={{fontSize:14,fontWeight:700,color:"rgba(0,0,0,0.84)",lineHeight:1.4}}>{item.action}</div>
-                          <div style={{flexShrink:0,background:"rgba(45,140,90,0.10)",border:"1px solid rgba(45,140,90,0.22)",
-                            borderRadius:8,padding:"3px 10px",fontSize:11,fontWeight:800,color:"#2D8C5A",whiteSpace:"nowrap"}}>
-                            {item.days} hari
-                          </div>
+                          <div style={{flexShrink:0,background:"rgba(45,140,90,0.10)",border:"1px solid rgba(45,140,90,0.22)",borderRadius:8,padding:"3px 10px",fontSize:11,fontWeight:800,color:"#2D8C5A",whiteSpace:"nowrap"}}>{item.days} hari</div>
                         </div>
                         {item.detail&&<div style={{fontSize:12,color:"rgba(0,0,0,0.44)",lineHeight:1.55}}>{item.detail}</div>}
                       </div>
@@ -794,20 +854,34 @@
                   ))}
                 </div>
               </div>
+              {/* Footer with exports */}
               <div style={{padding:"16px 24px 22px",borderTop:"1px solid rgba(255,255,255,0.40)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={()=>exportAIExcel(modal,division)} className="pill-btn" style={{fontSize:12,fontWeight:700,color:"#2D8C5A",gap:5}}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Export Excel
+                    Excel
                   </button>
                   <button onClick={()=>exportAIPDF(modal,division)} className="pill-btn" style={{fontSize:12,fontWeight:700,color:"#2E6DB4",gap:5}}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    Export PDF
+                    PDF
                   </button>
                 </div>
                 <button onClick={()=>setModal(null)} className="pill-btn active-black" style={{fontWeight:700,fontSize:13,padding:"8px 24px"}}>Tutup</button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Error toast */}
+        {error&&!loading&&(
+          <div style={{position:"fixed",bottom:28,right:28,zIndex:9999,padding:"12px 20px",borderRadius:14,
+            background:"rgba(185,50,42,0.90)",backdropFilter:"blur(20px)",
+            color:"#fff",fontSize:13,fontWeight:600,
+            boxShadow:"0 8px 24px rgba(185,50,42,0.30)",animation:"fu 0.2s ease both",
+            display:"flex",alignItems:"center",gap:8}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            {error}
+            <button onClick={()=>setError(null)} style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:14,marginLeft:4}}>✕</button>
           </div>
         )}
       </>
@@ -1123,7 +1197,7 @@
 
         {/* HEADER */}
         <div className="fu" style={{marginBottom:22}}>
-          <div style={{display:"grid",gridTemplateColumns:"auto 1fr",alignItems:"center",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"auto 1fr auto",alignItems:"center",gap:16}}>
             <div>
               <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",letterSpacing:"0.10em",textTransform:"uppercase",marginBottom:7,display:"flex",alignItems:"center",gap:8}}>
                 FTL GYM
@@ -1132,6 +1206,8 @@
               <h1 style={{fontSize:44,fontWeight:700,color:"rgba(0,0,0,0.86)",letterSpacing:"-0.025em",lineHeight:1.05,marginBottom:6}}>Complaint Analysis</h1>
               <p style={{fontSize:13,color:"rgba(0,0,0,0.42)",fontWeight:500}}>{smartLabel} · {data.length} laporan di {branchSet.size} cabang</p>
             </div>
+            {/* Analysis Box */}
+            <AIAnalysis divData={divData} division={division} plans={plans} branches={branches} monthRanges={monthRanges}/>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
               {/* Month dropdown */}
               {monthRanges.length>0&&(
@@ -1173,6 +1249,7 @@
           {[{v:"Semua Status",a:"active-black"},{v:"Untouched",a:"active-black"},{v:"On going",a:"active-orange"},{v:"Solved",a:"active-green"},{v:"Not Problem to solve",a:"active-red"}].map(({v,a})=>(
             <button key={v} onClick={()=>{setStFilt(v);setDrill(null);}} className={`pill-btn ${stFilt===v?a:""}`}>{v}</button>
           ))}
+
         </div>
 
         {/* CATEGORY TABS */}
@@ -1491,9 +1568,6 @@
             )}
           </div>
         )}
-
-        {/* AI ANALYSIS PANEL */}
-        <AIAnalysis divData={divData} division={division} plans={plans} branches={branches} monthRanges={monthRanges}/>
 
         {/* EXPORT FOOTER */}
         <G style={{padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
