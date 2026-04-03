@@ -365,6 +365,15 @@
       if(v.includes("feedback")) ci.feedback=i;
       if(v.includes("nama customer")||v.includes("nama member")||v.includes("customer")) ci.customer=i;
     });
+    // Fallback: if date col not found by header, detect by content (Date(...) pattern)
+    if(ci.date==null){
+      const sample=cells.slice(0,5);
+      for(let col=0;col<(cells[0]?.length||0);col++){
+        if(sample.some(row=>row[col]?.v&&/Date\(\d+,\d+,\d+\)/.test(row[col].v))){
+          ci.date=col; break;
+        }
+      }
+    }
     const out=[];
     rows.forEach((r,i)=>{
       const rawCat=(r[ci.issue]||"").trim();if(!rawCat) return;
