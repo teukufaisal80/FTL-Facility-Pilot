@@ -745,7 +745,7 @@
 
           {/* Dropdown menu */}
           {open&&(
-            <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,minWidth:220,zIndex:1000,
+            <div style={{position:"absolute",bottom:"calc(100% + 8px)",right:0,minWidth:220,zIndex:1000,
               background:"rgba(255,255,255,0.88)",backdropFilter:"blur(40px) saturate(180%)",WebkitBackdropFilter:"blur(40px) saturate(180%)",
               borderTop:"1px solid rgba(255,255,255,0.92)",borderRight:"1px solid rgba(255,255,255,0.55)",
               borderBottom:"1px solid rgba(255,255,255,0.40)",borderLeft:"1px solid rgba(255,255,255,0.55)",
@@ -1197,7 +1197,7 @@
 
         {/* HEADER */}
         <div className="fu" style={{marginBottom:22}}>
-          <div style={{display:"grid",gridTemplateColumns:"auto 1fr auto",alignItems:"center",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"auto 1fr",alignItems:"start",gap:16}}>
             <div>
               <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",letterSpacing:"0.10em",textTransform:"uppercase",marginBottom:7,display:"flex",alignItems:"center",gap:8}}>
                 FTL GYM
@@ -1206,9 +1206,8 @@
               <h1 style={{fontSize:44,fontWeight:700,color:"rgba(0,0,0,0.86)",letterSpacing:"-0.025em",lineHeight:1.05,marginBottom:6}}>Complaint Analysis</h1>
               <p style={{fontSize:13,color:"rgba(0,0,0,0.42)",fontWeight:500}}>{smartLabel} · {data.length} laporan di {branchSet.size} cabang</p>
             </div>
-            {/* Analysis Box */}
-            <AIAnalysis divData={divData} division={division} plans={plans} branches={branches} monthRanges={monthRanges}/>
-            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end"}}>
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
               {/* Month dropdown */}
               {monthRanges.length>0&&(
                 <div className="pill-btn" style={{padding:"6px 14px",gap:6,position:"relative"}}>
@@ -1239,6 +1238,9 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                 Keluar
               </button>
+              </div>
+              {/* Analysis Box — bottom right of header */}
+              <AIAnalysis divData={divData} division={division} plans={plans} branches={branches} monthRanges={monthRanges}/>
             </div>
           </div>
         </div>
