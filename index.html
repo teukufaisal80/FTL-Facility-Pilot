@@ -556,6 +556,13 @@
       if(!matchingGids.length){ setDivData(dataWithStatus); return; }
       const filtered = dataWithStatus.filter(d=>matchingGids.includes(d.gid));
       console.log("[FTL] divData filtered:",filtered.length,"from",dataWithStatus.length);
+      const withDate=filtered.filter(d=>d.dateParsed);
+      const noDate=filtered.filter(d=>!d.dateParsed);
+      console.log("[FTL] divData: parsed="+withDate.length+" noParse="+noDate.length);
+      if(withDate.length){
+        const dates=withDate.map(d=>d.dateParsed).sort((a,b)=>a-b);
+        console.log("[FTL] divData date range:",toISO(dates[0]),"→",toISO(dates[dates.length-1]));
+      }
       setDivData(filtered);
     },[dataWithStatus,division,sheets,allData]);
 
