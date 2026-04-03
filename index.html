@@ -124,6 +124,8 @@
   const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
   const SHEET_ID = "1HqgoFdEwppoBfcPj2HeXPJuo-WH-Ef4sik1J0OYoORg";
+  const GEMINI_KEY = "AIzaSyCEjU3SuMpxHbGiK6i4eusLUivoIURzDto";
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
   const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxoJYrWA2tr1oVe-G-UVlnKZ36xMroIFKXW2-KrG_Y1WEl9rofq2NdCVtHtfwo2XtE/exec";
   const SESSION_DURATION = 15 * 60 * 1000; // 15 minutes
 
@@ -509,7 +511,172 @@
     );
   }
 
+
   // ════════════════════════════════════════
+  // AI ANALYSIS COMPONENT
+  // ════════════════════════════════════════
+  function AIAnalysis({divData, division, plans, branches, monthRanges}){
+    const [loading, setLoading] = useState(false);
+    const [modal, setModal]     = useState(null);
+    const [error, setError]     = useState(null);
+    const [custom, setCustom]   = useState("");
+    const [active, setActive]   = useState(null);
+
+    function buildContext(){
+      const sorted=[...monthRanges].sort((a,b)=>b.year-a.year||b.month-a.month).slice(0,3);
+      const labels=sorted.map(m=>m.labelFull+" "+m.year).join(", ");
+      const from=sorted.length?new Date(sorted[sorted.length-1].from):null;
+      const recent=from?divData.filter(d=>d.dateParsed&&d.dateParsed>=from):divData;
+      const ic={},bc={},sc={};
+      recent.forEach(d=>{ic[d.sub]=(ic[d.sub]||0)+1;bc[d.branch]=(bc[d.branch]||0)+1;sc[d.status]=(sc[d.status]||0)+1;});
+      const ti=Object.entries(ic).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`${k}(${v})`).join(", ");
+      const tb=Object.entries(bc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`${k}(${v})`).join(", ");
+      const ts=Object.entries(sc).map(([k,v])=>`${k}:${v}`).join(", ");
+      return {ctx:`Divisi: ${division.label}\nPeriode: ${labels}\nTotal keluhan: ${recent.length}\nTop isu: ${ti}\nTop cabang: ${tb}\nStatus: ${ts}`, labels, total:recent.length};
+    }
+
+    const SUFFIX=`\n\nKonteks: Kamu adalah konsultan operasional untuk jaringan gym FTL. Gunakan terminologi yang familiar: member, cabang/outlet, FC (Front Counter), PT (Personal Trainer), GX (Group Exercise), MC (Member Care), OB (Office Boy), staff, loker, alat gym, treadmill, dumbbell, barbel, kebersihan, fasilitas, parkir, membership, kelas, Google Review, Quick Response, WhatsApp, In-Apps.\n\nBALAS HANYA dengan JSON valid berikut, tidak ada teks lain:\n{"summary":"ringkasan 1-2 kalimat yang spesifik ke kondisi gym","items":[{"action":"langkah konkret spesifik gym maks 70 karakter","detail":"penjelasan konteks gym maks 120 karakter","days":3}]}\nSetiap item wajib punya action, detail, dan days (angka hari 1-30). Buat 4-6 items yang actionable dan realistis untuk operasional gym.`;
+
+    async function analyze(type){
+      if(type==="custom"&&!custom.trim()){setError("Masukkan pertanyaan dulu.");return;}
+      setLoading(true);setError(null);setModal(null);setActive(type);
+      try{
+        const {ctx,labels}=buildContext();
+        const titles={freq:"Isu Paling Sering Muncul",impact:"Isu Paling Berdampak",outlet:"Outlet Terbanyak Komplain",focus:"Rekomendasi Fokus Bulan Ini",custom:custom};
+        const prompts={
+          freq:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa sub-issue paling sering dan berikan action items konkret beserta estimasi hari penyelesaian.${SUFFIX}`,
+          impact:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa sub-issue paling berdampak pada member dan bisnis, berikan action items konkret.${SUFFIX}`,
+          outlet:`Data keluhan FTL Gym:\n${ctx}\n\nAnalisa outlet/cabang dengan keluhan terbanyak, berikan action items untuk manajemen.${SUFFIX}`,
+          focus:`Data keluhan FTL Gym:\n${ctx}\n\nBerikan rekomendasi prioritas yang harus difokuskan bulan ini, urutkan dari paling mendesak.${SUFFIX}`,
+          custom:`Data keluhan FTL Gym:\n${ctx}\n\nPertanyaan: ${custom}\n\nJawab dengan action items konkret.${SUFFIX}`
+        };
+        const res=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({contents:[{parts:[{text:prompts[type]}]}],generationConfig:{maxOutputTokens:1500,temperature:0.6}})});
+        const data=await res.json();
+        if(data.error) throw new Error(data.error.message);
+        const text=data.candidates?.[0]?.content?.parts?.[0]?.text||"";
+        const jm=text.match(/\{[\s\S]*\}/);
+        if(!jm) throw new Error("Format respons tidak valid, coba lagi.");
+        const parsed=JSON.parse(jm[0]);
+        setModal({title:titles[type],summary:parsed.summary,items:parsed.items||[]});
+      }catch(e){setError(e.message);}
+      setLoading(false);
+    }
+
+    const btns=[
+      {id:"freq",icon:"📊",label:"Isu Paling Sering"},
+      {id:"impact",icon:"⚡",label:"Isu Paling Berdampak"},
+      {id:"outlet",icon:"📍",label:"Outlet Terbanyak Komplain"},
+      {id:"focus",icon:"🎯",label:"Rekomendasi Fokus Bulan Ini"},
+    ];
+
+    return (
+      <>
+        <div className="glass" style={{marginBottom:16,overflow:"hidden"}}>
+          <div style={{padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.055)",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:22}}>✨</span>
+            <div>
+              <div style={{fontSize:17,fontWeight:800,color:"rgba(0,0,0,0.82)"}}>AI Analysis</div>
+              <div style={{fontSize:11,color:"rgba(0,0,0,0.40)",marginTop:1}}>Powered by Gemini · Data 3 bulan terakhir · {division.label}</div>
+            </div>
+          </div>
+          <div style={{padding:"20px 24px"}}>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+              {btns.map(b=>(
+                <button key={b.id} onClick={()=>analyze(b.id)} disabled={loading}
+                  className={`pill-btn${active===b.id&&loading?" active-black":""}`}
+                  style={{fontSize:12,fontWeight:700,gap:6,opacity:loading&&active!==b.id?.5:1,cursor:loading?"not-allowed":"pointer"}}>
+                  {loading&&active===b.id
+                    ?<><div style={{width:12,height:12,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"#fff",borderRadius:"50%"}} className="spin"/>{b.label}</>
+                    :<>{b.icon} {b.label}</>}
+                </button>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <input type="text" value={custom} onChange={e=>setCustom(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&!loading&&analyze("custom")}
+                placeholder="✍️  Tulis pertanyaan analisa sendiri... (Enter untuk kirim)"
+                style={{flex:1,padding:"9px 16px",borderRadius:12,border:"1px solid rgba(0,0,0,0.12)",fontSize:13,fontWeight:500,color:"rgba(0,0,0,0.78)",background:"rgba(255,255,255,0.90)",outline:"none",fontFamily:"inherit"}}/>
+              <button onClick={()=>!loading&&analyze("custom")} disabled={loading||!custom.trim()}
+                className="pill-btn active-black" style={{padding:"9px 20px",fontWeight:700,fontSize:13,opacity:!custom.trim()?.45:1}}>
+                {loading&&active==="custom"?<div style={{width:14,height:14,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"#fff",borderRadius:"50%"}} className="spin"/>:"Analisa"}
+              </button>
+            </div>
+            {error&&<div style={{marginTop:12,padding:"12px 16px",borderRadius:12,background:"rgba(185,50,42,0.08)",border:"1px solid rgba(185,50,42,0.20)",color:"#B8332A",fontSize:13,fontWeight:600}}>⚠️ {error}</div>}
+          </div>
+        </div>
+
+        {modal&&(
+          <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,
+            background:"rgba(0,0,0,0.25)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)"}}
+            onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+            <div style={{width:"100%",maxWidth:600,maxHeight:"88vh",overflowY:"auto",borderRadius:28,
+              background:"rgba(255,255,255,0.78)",
+              backdropFilter:"blur(62px) saturate(200%) brightness(1.05)",
+              WebkitBackdropFilter:"blur(62px) saturate(200%) brightness(1.05)",
+              borderTop:"1px solid rgba(255,255,255,0.92)",
+              borderRight:"1px solid rgba(255,255,255,0.55)",
+              borderBottom:"1px solid rgba(255,255,255,0.40)",
+              borderLeft:"1px solid rgba(255,255,255,0.55)",
+              boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.98),0 40px 100px rgba(0,0,0,0.22),0 8px 24px rgba(0,0,0,0.10)",
+              animation:"fu 0.22s ease both"}}>
+              <div style={{padding:"22px 24px 16px",borderBottom:"1px solid rgba(255,255,255,0.40)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"sticky",top:0,
+                background:"rgba(255,255,255,0.72)",backdropFilter:"blur(40px)",WebkitBackdropFilter:"blur(40px)",
+                borderRadius:"28px 28px 0 0",zIndex:1}}>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:"0.10em",marginBottom:5}}>✨ AI Analysis · {division.label}</div>
+                  <div style={{fontSize:20,fontWeight:800,color:"rgba(0,0,0,0.86)",letterSpacing:"-0.01em"}}>{modal.title}</div>
+                </div>
+                <button onClick={()=>setModal(null)} style={{width:32,height:32,borderRadius:"50%",
+                  background:"rgba(0,0,0,0.08)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",
+                  border:"1px solid rgba(255,255,255,0.60)",cursor:"pointer",fontSize:13,color:"rgba(0,0,0,0.50)",fontWeight:700,flexShrink:0,marginLeft:16,
+                  boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.80)"}}>✕</button>
+              </div>
+              {modal.summary&&(
+                <div style={{padding:"14px 24px",background:"rgba(0,122,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.40)"}}>
+                  <p style={{fontSize:13,color:"rgba(0,0,0,0.65)",lineHeight:1.65,fontWeight:500}}>{modal.summary}</p>
+                </div>
+              )}
+              <div style={{padding:"16px 24px 8px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.30)",textTransform:"uppercase",letterSpacing:"0.10em",marginBottom:10}}>Action Items & Timeline</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {modal.items.map((item,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"14px 16px",borderRadius:16,
+                      background:"rgba(255,255,255,0.85)",
+                      backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+                      borderTop:"1px solid rgba(255,255,255,0.90)",
+                      borderRight:"1px solid rgba(255,255,255,0.50)",
+                      borderBottom:"1px solid rgba(255,255,255,0.35)",
+                      borderLeft:"1px solid rgba(255,255,255,0.50)",
+                      boxShadow:"inset 0 0.5px 0 rgba(255,255,255,0.95),0 2px 8px rgba(0,0,0,0.05)"}}>
+                      <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(28,28,30,0.88)",color:"#fff",
+                        display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0,marginTop:1}}>
+                        {i+1}
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:5}}>
+                          <div style={{fontSize:14,fontWeight:700,color:"rgba(0,0,0,0.84)",lineHeight:1.4}}>{item.action}</div>
+                          <div style={{flexShrink:0,background:"rgba(45,140,90,0.10)",border:"1px solid rgba(45,140,90,0.22)",
+                            borderRadius:8,padding:"3px 10px",fontSize:11,fontWeight:800,color:"#2D8C5A",whiteSpace:"nowrap"}}>
+                            {item.days} hari
+                          </div>
+                        </div>
+                        {item.detail&&<div style={{fontSize:12,color:"rgba(0,0,0,0.44)",lineHeight:1.55}}>{item.detail}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{padding:"16px 24px 22px",borderTop:"1px solid rgba(255,255,255,0.40)",display:"flex",justifyContent:"flex-end"}}>
+                <button onClick={()=>setModal(null)} className="pill-btn active-black" style={{fontWeight:700,fontSize:13,padding:"8px 24px"}}>Tutup</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   // MAIN DASHBOARD
   // ════════════════════════════════════════
   function Dashboard({division,onLogout}){
@@ -1187,6 +1354,9 @@
             )}
           </div>
         )}
+
+        {/* AI ANALYSIS PANEL */}
+        <AIAnalysis divData={divData} division={division} plans={plans} branches={branches} monthRanges={monthRanges}/>
 
         {/* EXPORT FOOTER */}
         <G style={{padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
