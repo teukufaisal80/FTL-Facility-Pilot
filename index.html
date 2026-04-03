@@ -715,37 +715,20 @@
         {/* Analysis Box trigger */}
         <div ref={boxRef} style={{position:"relative",display:"inline-block"}}>
           <button onClick={()=>!loading&&setOpen(o=>!o)}
-            style={{width:160,height:72,borderRadius:18,cursor:"pointer",textAlign:"left",padding:"14px 16px",
-              background:open?"rgba(28,28,30,0.90)":"rgba(255,255,255,0.75)",
-              backdropFilter:"blur(40px) saturate(180%)",WebkitBackdropFilter:"blur(40px) saturate(180%)",
-              borderTop:`1px solid ${open?"rgba(255,255,255,0.18)":"rgba(255,255,255,0.92)"}`,
-              borderRight:`1px solid ${open?"rgba(255,255,255,0.10)":"rgba(255,255,255,0.55)"}`,
-              borderBottom:`1px solid ${open?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.40)"}`,
-              borderLeft:`1px solid ${open?"rgba(255,255,255,0.10)":"rgba(255,255,255,0.55)"}`,
-              boxShadow:open?"inset 0 0.5px 0 rgba(255,255,255,0.15),0 4px 16px rgba(0,0,0,0.25)":"inset 0 0.5px 0 rgba(255,255,255,0.98),0 4px 16px rgba(0,0,0,0.08)",
-              transition:"all 0.15s",fontFamily:"inherit",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div style={{width:24,height:24,borderRadius:7,background:open?"rgba(255,255,255,0.15)":"rgba(28,28,30,0.10)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={open?"#fff":"rgba(0,0,0,0.60)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-                </svg>
-              </div>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={open?"rgba(255,255,255,0.50)":"rgba(0,0,0,0.28)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            {loading
-              ?<div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <div style={{width:11,height:11,border:"2px solid rgba(0,0,0,0.15)",borderTopColor:open?"#fff":"rgba(0,0,0,0.55)",borderRadius:"50%"}} className="spin"/>
-                  <span style={{fontSize:11,fontWeight:600,color:open?"rgba(255,255,255,0.80)":"rgba(0,0,0,0.45)"}}>Menganalisa...</span>
-                </div>
-              :<div>
-                <div style={{fontSize:13,fontWeight:800,color:open?"#fff":"rgba(0,0,0,0.82)",letterSpacing:"-0.01em",marginBottom:1}}>Analysis Box</div>
-                <div style={{fontSize:10,fontWeight:500,color:open?"rgba(255,255,255,0.50)":"rgba(0,0,0,0.36)"}}>AI · Gemini</div>
-              </div>}
+            className="pill-btn"
+            style={{gap:7,fontWeight:700,fontSize:12,paddingLeft:14,paddingRight:14,
+              background:open?"rgba(28,28,30,0.88)":"rgba(255,255,255,0.75)",
+              color:open?"#fff":"rgba(0,0,0,0.72)"}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+            </svg>
+            {loading?"Menganalisa...":"Analysis Box"}
+            {!loading&&<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{opacity:0.5,transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}><polyline points="6 9 12 15 18 9"/></svg>}
           </button>
 
           {/* Dropdown menu */}
           {open&&(
-            <div style={{position:"absolute",bottom:"calc(100% + 8px)",right:0,minWidth:220,zIndex:1000,
+            <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,minWidth:220,zIndex:1000,
               background:"rgba(255,255,255,0.88)",backdropFilter:"blur(40px) saturate(180%)",WebkitBackdropFilter:"blur(40px) saturate(180%)",
               borderTop:"1px solid rgba(255,255,255,0.92)",borderRight:"1px solid rgba(255,255,255,0.55)",
               borderBottom:"1px solid rgba(255,255,255,0.40)",borderLeft:"1px solid rgba(255,255,255,0.55)",
@@ -1197,7 +1180,7 @@
 
         {/* HEADER */}
         <div className="fu" style={{marginBottom:22}}>
-          <div style={{display:"grid",gridTemplateColumns:"auto 1fr",alignItems:"start",gap:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"auto 1fr",alignItems:"center",gap:16}}>
             <div>
               <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",letterSpacing:"0.10em",textTransform:"uppercase",marginBottom:7,display:"flex",alignItems:"center",gap:8}}>
                 FTL GYM
@@ -1239,8 +1222,6 @@
                 Keluar
               </button>
               </div>
-              {/* Analysis Box — bottom right of header */}
-              <AIAnalysis divData={divData} division={division} plans={plans} branches={branches} monthRanges={monthRanges}/>
             </div>
           </div>
         </div>
@@ -1251,7 +1232,9 @@
           {[{v:"Semua Status",a:"active-black"},{v:"Untouched",a:"active-black"},{v:"On going",a:"active-orange"},{v:"Solved",a:"active-green"},{v:"Not Problem to solve",a:"active-red"}].map(({v,a})=>(
             <button key={v} onClick={()=>{setStFilt(v);setDrill(null);}} className={`pill-btn ${stFilt===v?a:""}`}>{v}</button>
           ))}
-
+          <div style={{marginLeft:"auto",flexShrink:0}}>
+            <AIAnalysis divData={divData} division={division} plans={plans} branches={branches} monthRanges={monthRanges}/>
+          </div>
         </div>
 
         {/* CATEGORY TABS */}
