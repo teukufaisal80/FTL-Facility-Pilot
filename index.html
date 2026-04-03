@@ -359,7 +359,7 @@
       if(v.includes("rating")||v.includes("google rating")) ci.rating=i;
       if(v.includes("sumber")||v.includes("source")) ci.source=i;
       if(v.includes("komentar")||v.includes("comment")) ci.comment=i;
-      if(v==="issue"||v.includes("kategori")||v.includes("category")||v==="issue/string") ci.issue=i;
+      if(v==="issue"||v.startsWith("issue")||v.includes("kategori")||v.includes("category")||v.includes("issue")) ci.issue=i;
       if(v.includes("inti permasalahan")||v.includes("summary")||v.includes("inti")) ci.summary=i;
       if(v==="status"||v.includes("status pelacakan")) ci.status=i;
       if(v.includes("feedback")&&!v.includes("inti")) ci.feedback=i;
@@ -397,13 +397,15 @@
       const com=(r[ci.comment]||"").trim(),sum=ci.summary!=null?(r[ci.summary]||"").trim():"";
       const rat=parseInt(r[ci.rating]);
       // Use raw cell value for date (avoids DD/MM/YYYY ambiguity)
-      // Use raw value for date to avoid DD/MM/YYYY ambiguity
-      const ds=(ci.date!=null?(cells[i]?.[ci.date]?.v||r[ci.date]||""):(r[ci.date]||"")).trim();
+      // Raw value for parsing, formatted value for display
+      const dsRaw=(ci.date!=null?(cells[i]?.[ci.date]?.v||""):"").trim();
+      const dsDisplay=(ci.date!=null?(cells[i]?.[ci.date]?.f||cells[i]?.[ci.date]?.v||r[ci.date]||""):(r[ci.date]||"")).trim();
+      const ds=dsRaw||dsDisplay; // use raw for parsing
       // Auto-status from Feedback column: filled = Solved, empty = Untouched
       const feedbackVal = ci.feedback!=null?(r[ci.feedback]||"").trim():"";
       const sheetStat = (ci.status!=null?(r[ci.status]||"").trim():"")||"Untouched";
       const rawStat = feedbackVal.length>0 ? "Solved" : sheetStat;
-      out.push({id:`${gidStr}_${i}`,realRow:i+hoff+1,gid:gidStr,dateStr:ds,dateParsed:parseDate(ds),
+      out.push({id:`${gidStr}_${i}`,realRow:i+hoff+1,gid:gidStr,dateStr:dsDisplay,dateParsed:parseDate(dsRaw||dsDisplay),
         branch:normalizeBranch((r[ci.branch]||"").trim()),cat:rawCat,source:(r[ci.source]||"").trim(),
         rating:isNaN(rat)?null:rat,intiPermasalahan:sum.length>2?sum:com,
         customer:(ci.customer!=null?(r[ci.customer]||"").trim():""),
