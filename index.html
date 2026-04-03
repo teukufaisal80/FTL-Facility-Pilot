@@ -261,9 +261,15 @@
     if(/req|request|tolong|pengen|adain/.test(s)||cat.includes("req")) return "Request Lainnya";
     return "Sub-Issue Lainnya";
   }
-  // getOwner is now passed division label from Dashboard component
-  function getOwner(cat, divLabel) {
-    return divLabel || "Operations";
+  // getOwner: for specific division use division label, for ALL use category-based
+  function getOwner(cat, divKey) {
+    if(divKey && divKey!=="ALL") return null; // will be set from division label
+    const s=cat.toLowerCase();
+    if(s.includes("fasilitas")||s.includes("parkir")||s.includes("alat")||s.includes("bersih")) return "FCM, FO, Security, OB";
+    if(s.includes("staff")||s.includes("member")||s.includes("kelas")) return "OM, FM, MC, PT";
+    if(s.includes("gx")) return "GX";
+    if(s.includes("pilates")) return "Pilates";
+    return "Operations";
   }
 
   const recoDB = {
@@ -616,7 +622,9 @@
       const raw=recoDB[sub]||{action:"Investigasi Ekstra",detail:"Selidiki pola operasional secara lebih intensif.",tl:"short",imp:"MEDIUM"};
       let imp=raw.imp;if(ct>filtered.length*0.1||ct>=5) imp="HIGH";else if(ct===1&&filtered.length>5) imp="LOW";
       const m=filtered.find(c=>c.sub===sub);
-      return{sub,count:ct,action:raw.action,detail:raw.detail,tl:raw.tl,imp,owner:getOwner(m?.cat||"",division.label),iv:{HIGH:3,MEDIUM:2,LOW:1}[imp]||1};
+      const ownerFromCat=getOwner(m?.cat||"",division.key);
+      const owner=division.key==="ALL"?ownerFromCat:(division.label);
+      return{sub,count:ct,action:raw.action,detail:raw.detail,tl:raw.tl,imp,owner:owner||"Operations",iv:{HIGH:3,MEDIUM:2,LOW:1}[imp]||1};
     }),[subCts,filtered]);
 
     const plans = useMemo(()=>{
